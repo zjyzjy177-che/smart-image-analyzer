@@ -8,6 +8,9 @@ echo "  智能图片分析系统 - 启动中..."
 echo "========================================"
 echo ""
 
+# 进入脚本所在目录
+cd "$(dirname "$0")" || exit 1
+
 # 检查 Python
 if ! command -v python3 &> /dev/null; then
     echo "[错误] 未找到 Python3，请安装 Python 3.9+"
@@ -33,10 +36,20 @@ fi
 mkdir -p images/sample
 
 echo ""
-echo "  浏览器即将自动打开 http://localhost:7860"
-echo "  如未自动打开，请手动访问上述地址"
+echo "  正在启动浏览器..."
+echo "  如未自动打开，请访问 http://localhost:7860"
 echo "  按 Ctrl+C 停止服务"
 echo ""
 
-# 启动应用（app.py 会自动打开浏览器）
-python3 app.py
+# 启动应用
+python3 app.py &
+
+# 等服务器就绪后打开浏览器
+sleep 3
+if command -v open &>/dev/null; then
+    open http://localhost:7860
+elif command -v xdg-open &>/dev/null; then
+    xdg-open http://localhost:7860
+fi
+
+wait
