@@ -81,34 +81,7 @@ def process_image(image, mode, conf_threshold, style_name):
 
 # ========== 构建 Gradio 界面 ==========
 
-# 定义界面主题色
-theme = gr.themes.Soft(
-    primary_hue="blue",
-    secondary_hue="indigo",
-)
-
-with gr.Blocks(
-    theme=theme,
-    title="智能图片分析网站",
-    css="""
-    .gradio-container {
-        max-width: 1200px !important;
-        margin: auto;
-    }
-    header {
-        text-align: center;
-        padding: 20px 0;
-    }
-    header h1 {
-        font-size: 2em;
-        margin-bottom: 5px;
-    }
-    header p {
-        color: #666;
-        font-size: 1.1em;
-    }
-    """
-) as app:
+with gr.Blocks(title="智能图片分析网站") as app:
 
     # ---------- 页面标题 ----------
     gr.HTML("""
@@ -202,4 +175,31 @@ if __name__ == "__main__":
     print("🚀 智能图片分析网站启动中...")
     print("  本地访问: http://localhost:7860")
     print("  按 Ctrl+C 停止服务")
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    # Gradio 6.x: theme 和 css 参数移到 launch() 中
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        theme=gr.themes.Soft(
+            primary_hue="blue",
+            secondary_hue="indigo",
+        ),
+        css="""
+        .gradio-container {
+            max-width: 1200px !important;
+            margin: auto;
+        }
+        header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+        header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        """,
+    )
