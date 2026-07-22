@@ -8,9 +8,9 @@
 
 ---
 
-## 📦 第一步：每个人装环境
+## 📦 环境安装
 
-在你自己电脑上打开终端，运行：
+在本地终端运行：
 
 ```bash
 # 克隆项目
@@ -21,238 +21,222 @@ cd smart-image-analyzer
 pip3 install torch torchvision ultralytics gradio numpy opencv-python pillow
 ```
 
-> ⚠️ 如果 `pip3` 找不到，试试 `pip` 或 `python3 -m pip install ...`
->
-> ⏱️ 首次安装大概 5-10 分钟，Torch 和 Ultralytics 比较大
+> ⚠️ 如果 `pip3` 不可用，尝试 `pip` 或 `python3 -m pip install ...`
 
-装完后测试一下界面：
+装完后运行以下命令确认界面可正常启动：
 ```bash
 python3 app.py
 ```
-浏览器打开 `http://localhost:7860`，能看到网页就算成功（目前只有物体检测能用，其他按钮会显示"开发中"）。
+浏览器打开 `http://localhost:7860`，看到网页即表示运行成功（目前仅物体检测功能可用，其余功能标注为"开发中"）。
 
 ---
 
-## 👥 第二步：各自开发（完整任务看板）
+## 👥 人员分工
 
-### 🫵 组长任务看板
-
-| 文件 | 状态 | 说明 |
-|:----:|:----:|------|
-| `detector.py` | ✅ **已完成** | YOLOv8 物体检测，直接就能用 |
-| `app.py` | ✅ **已完成** | Gradio 主界面已写好 |
-| **集成 A+B 的代码** | ⏳ 7/25后 | A和B跑通后，取消几行注释即可 |
-
-**你不需要写新代码**，你的任务是：
-1. 确认 YOLO 检测跑通（已跑通 ✅）
-2. 等 A 和 B 跑通后，在 `app.py` 里取消注释（到时候我告诉你是哪几行）
-3. 管好进度，催 A 和 B
+| 成员 | 负责模块 | 文件 | 难度 |
+|:----:|----------|------|:----:|
+| **组长** | 主程序 + YOLO 物体检测 + 集成 | `app.py` + `detector.py` | ★★☆ |
+| **组员 A** | 图像分类 + 文字识别(OCR) | `classifier.py` + `ocr.py` | ★★☆ |
+| **组员 B** | 人脸检测 + 启动脚本 + 风格迁移(可选) | `face_detect.py` + `run.sh`/`run.bat` | ★☆☆~★★☆ |
 
 ---
 
-### 🧑 A — 完整任务看板
+## 🎯 组员 A 任务看板
 
-**你要改的文件：** `classifier.py` + `ocr.py`
+**负责文件：** `classifier.py` + `ocr.py`
 
-#### 🎯 任务 1：图像分类（`classifier.py`）
+---
 
-**目标：** 上传一张图片 → 告诉你是猫、狗、汽车、飞机...
+### 任务 1：图像分类（`classifier.py`）
 
-**难度：** ★☆☆（调包就行）
+**目标：** 上传图片 → 输出图片内容类别（猫、狗、汽车、飞机等）
 
-**具体步骤：**
+**难度：** ★☆☆
 
-1. 装依赖
+**操作步骤：**
+
+1. 安装依赖
    ```bash
    pip3 install torch torchvision pillow numpy
    ```
 
-2. 运行测试
+2. 运行自测
    ```bash
    cd smart-image-analyzer
    python3 classifier.py
    ```
-   它会装 ResNet50 模型（~100MB），然后输出类似：
+   首次运行自动下载 ResNet50 模型（~100MB），输出示例：
    ```
    🏷️ 分类结果: 平顶山
    📊 置信度: 5.43%
    ```
-   > 因为测试图是纯色块，置信度低是正常的。上传真实照片置信度会到 80%+
+   > 测试图是纯色块，置信度低是正常现象。传入真实照片后置信度会显著提升。
 
-3. **你的代码要做的 3 件事（代码里都有框架了，你只需要完善）：**
-
-   **① `classifier.py` 里的 `classify_image()` 函数**
-   - 代码已经写好了，你只需要确保能跑通
-   - 核心逻辑：加载 ResNet → 预处理图片 → 推理 → 返回 (标签, 置信度)
-
-   **② 加一点"显示 Top-3"功能（加分）**
-   - 现在只返回 Top-1，你可以改成返回 Top-3
-   - 参考代码里的 `torch.topk(probabilities, 3)` 已经有了
-
-   **③ 跑通了告诉组长："我分类跑通了"**
+3. **需要完成的工作：**
+   - 确保 `classifier.py` 能正常运行并输出分类结果
+   - 代码中的 `classify_image()` 函数已提供完整实现，无需额外编写
 
 4. **常见问题：**
-   - ❌ 网络下载模型慢 → 等一会儿（100MB 大概 2-3 分钟）
-   - ❌ `cannot connect` → 换个网络环境 / 用手机热点
-   - ❌ 报错说 `models.resnet50` 找不到 → 更新 torchvision：`pip3 install --upgrade torchvision`
+   - ❌ 模型下载慢 → 等待约 2-3 分钟
+   - ❌ 网络连接失败 → 更换网络环境
+   - ❌ torchvision 版本问题 → 执行 `pip3 install --upgrade torchvision`
 
 ---
 
-#### 🎯 任务 2：OCR 文字识别（`ocr.py`）
+### 任务 2：OCR 文字识别（`ocr.py`）
 
-**目标：** 上传一张带文字的图片 → 提取出里面的文字
+**目标：** 上传带文字的图片 → 提取并显示图片中的文字
 
-**难度：** ★★☆（PaddleOCR 容易装不上，有备选方案）
+**难度：** ★★☆
 
-**具体步骤：**
+**操作步骤：**
 
-**方案 A（优先）：用 PaddleOCR**
+**方案 A（优先）：PaddleOCR**
 ```bash
 pip3 install paddlepaddle paddleocr
 python3 ocr.py
 ```
 
-**方案 B（备选）：如果 PaddleOCR 装不上，用 easyocr**
+**方案 B（备选）：若 PaddleOCR 安装失败，换用 easyocr**
 ```bash
 pip3 install easyocr
 ```
 
-然后把 `ocr.py` 里这段代码换掉：
+然后在 `ocr.py` 的 `get_ocr()` 函数中替换为：
 ```python
-# 找到 get_ocr() 函数，把里面的内容替换为：
 import easyocr
 ocr = easyocr.Reader(['ch_sim', 'en'])
 return ocr
 ```
 
-**效果预期：**
-```bash
-$ python3 ocr.py
+**预期输出：**
+```
 📝 识别文字: Hello World 你好世界
 ```
 
 **常见问题：**
-- ❌ PaddleOCR 装不上 → 直接用方案 B（easyocr），效果差不多
-- ❌ easyocr 也装不上 → 告诉组长，还有方案 C（用 pytesseract）
+- ❌ PaddleOCR 安装失败 → 改用 easyocr
+- ❌ easyocr 仍失败 → 告知组长，换用 pytesseract
 
 ---
 
-### 🧑 B — 完整任务看板
+## 🎯 组员 B 任务看板
 
-**你要改的文件：** `face_detect.py` + 启动脚本
+**负责文件：** `face_detect.py` + `run.sh` / `run.bat` (+ `style_transfer.py` 可选)
 
-#### 🎯 任务 1：人脸检测（`face_detect.py`）
+---
 
-**目标：** 上传一张有人脸的照片 → 框出人脸位置
+### 任务 1：人脸检测（`face_detect.py`）
 
-**难度：** ★☆☆（OpenCV 内置功能）
+**目标：** 上传含人脸的图片 → 框出人脸位置
 
-**具体步骤：**
+**难度：** ★☆☆
 
-1. 装依赖
+**操作步骤：**
+
+1. 安装依赖
    ```bash
    pip3 install opencv-python numpy pillow
    ```
 
-2. 运行测试
+2. 准备测试图片
+   - 下载一张包含人脸的真人照片
+   - 修改 `face_detect.py` 底部测试代码中的图片路径
+
+3. 运行自测
    ```bash
    cd smart-image-analyzer
    python3 face_detect.py
    ```
-   输出类似：
-   ```
-   检测到 0 张人脸
-   ⚠️ 测试图可能太简单，换一张真实照片试试
-   ```
-   > 测试图是画出来的椭圆，不是真人脸，所以检测不到是正常的。
-   > **你需要下载一张真人照片来测试。**
 
-3. **你的代码要做的 2 件事：**
-
-   **① 找一张真人照片测试**
-   - 随便从网上下载一张有人脸的照片
-   - 在 `face_detect.py` 文件底部找到测试代码，把文件路径换成你的照片
+4. 测试代码修改示例：
    ```python
-   # 大概在第 100 行附近，找到这行：
-   test_img = np.zeros((400, 400, 3), dtype=np.uint8)
-   # 替换为：
-   test_img = cv2.imread("你的照片路径.jpg")
+   # 将原有测试图创建代码替换为：
+   test_img = cv2.imread("照片路径.jpg")
    test_img = cv2.cvtColor(test_img, cv2.COLOR_BGR2RGB)
    ```
 
-   **② 跑通后告诉组长 + 组长让你干啥就干啥**
+5. 完成标准：能正确框出照片中的人脸位置
 
-4. **常见问题：**
-   - ❌ `cv2.error: ...` → 检查照片路径对不对
-   - 检测不到人脸 → 换正面大头照试试
+**常见问题：**
+- ❌ cv2 报错 → 检查图片路径是否正确
+- 检测不到人脸 → 换用正面、光线充足的照片
 
 ---
 
-#### 🎯 任务 2：启动脚本（`run.sh` + `run.bat`）
+### 任务 2：启动脚本（`run.sh` + `run.bat`）
 
-**目标：** 双击就能启动项目，不用打命令
+**目标：** 双击即可启动项目，无需输入命令
 
 **难度：** ★☆☆
 
-**具体步骤：**
+**两个脚本已编写完成，需要验证：**
 
-两个脚本都已经写好了，你只需要 **确保它们在你电脑上能双击运行**：
+- **macOS / Linux**：终端执行 `bash run.sh` 或 `chmod +x run.sh && ./run.sh`
+- **Windows**：双击 `run.bat`
 
-- **Mac 用户**：双击 `run.sh` → 如果提示"没有权限"，先运行 `chmod +x run.sh`
-- **Windows 用户**：双击 `run.bat`
-
-**如果双击报错：** 检查 Python 有没有加到环境变量。在终端运行 `python3` / `python` 看能不能找到。
+**常见问题：**
+- 提示"Python 未找到" → 检查 Python 是否加入系统 PATH
 
 ---
 
-#### 🎯 任务 3：风格迁移 — 加分项（`style_transfer.py`）
+### 任务 3：风格迁移（可选加分项，`style_transfer.py`）
 
-**目标：** 把照片变成梵高/莫奈风格
+**目标：** 将照片转换为梵高/莫奈等艺术风格
 
 **难度：** ★★☆
 
-**如果前面的任务都搞定了，还有时间再做这个。**
+**前置条件：** 任务 1 和任务 2 完成后有余力再执行
 
-现在代码里是"伪风格迁移"（只是改颜色），真正的风格迁移需要额外装模型。如果你想做：
+**当前状态：** 代码中提供的是简化的颜色映射方案（仅调整色调）。如需真实风格迁移效果，可集成预训练模型。
 
+**可选升级方案：**
 ```bash
 pip3 install torch torchvision pillow
 ```
+替换 `style_transfer.py` 中 `transfer_style()` 函数的实现。
 
-然后用预训练的风格迁移模型替换 `style_transfer.py` 里的 `transfer_style()` 函数。
-
-**注意：这个功能不一定要做，评分时前面 4 个功能已经够了。**
+**注意：** 即使不做此功能，前 4 个核心功能已满足项目要求。
 
 ---
 
-## 🔗 第三步：集成（7/27前，组长做）
+## 🔗 集成步骤（组长执行）
 
-等 A 和 B 都跑通后，组长在 `app.py` 里把 `# TODO: A 实现后取消注释` 之类的行取消注释，所有功能就一起上线了。
+待组员 A 和 B 确认各自模块运行正常后，组长在 `app.py` 中执行以下操作：
 
-具体取消哪些行，到时候 A 和 B 说"跑通了"，你问我，我告诉你怎么改。
+1. 找到文件开头的 `import` 区域，取消以下行的注释：
+   ```python
+   from classifier import classify_image
+   from ocr import extract_text
+   from face_detect import detect_faces
+   ```
+
+2. 找到 `process_image()` 函数中对应各功能的 `# TODO` 注释行，取消注释并删除下方的占位返回语句
+
+具体修改位置届时由组长确认后执行，可咨询指导。
 
 ---
 
 ## 📝 Git 协作规范
 
 ```bash
-# 第一次克隆
+# 首次克隆
 git clone https://github.com/zjyzjy177-che/smart-image-analyzer.git
 
-# 每次开始写代码前 —— 拉取最新代码
+# 每次开始前拉取最新代码
 git pull
 
-# 写完代码后 —— 提交并推送
-git add 你的文件.py      # 只加你自己的文件，不要 git add .
+# 修改后提交
+git add 个人负责的文件.py      # 只提交自己负责的文件
 git commit -m "A: 完成了图像分类模块"
 git push
 ```
 
-**⚠️ 关键规则：**
-- **只改你自己的文件！** 组长负责 `app.py` 和 `detector.py`，A 负责 `classifier.py` 和 `ocr.py`，B 负责 `face_detect.py` 和脚本
-- 不要 `git add .` 提交别人的文件
-- `git push` 之前先 `git pull`，避免冲突
-- 如果提示 "merge conflict"，不要慌，在群里喊我
+**⚠️ 规则：**
+- 每人只修改自己负责的文件，不要改动他人文件
+- 不要使用 `git add .`，应指定具体文件
+- `git push` 前先 `git pull`
+- 遇到 merge conflict 时在群里沟通
 
 ---
 
@@ -260,38 +244,36 @@ git push
 
 | 时间 | 目标 |
 |:----:|------|
-| **7/22-7/24** | 各自装环境 + 跑通自己的模块 |
-| **7/25-7/27** | 组长集成，所有功能一起跑通 |
-| **7/28-8/10** | 美化界面 + B 做风格迁移（可选） |
-| **8/10-8/20** | 写报告 + 做PPT + 录演示视频 + 提交 |
+| **7/22-7/24** | 环境搭建 + 各自模块跑通 |
+| **7/25-7/27** | 组长集成，全部功能联调完成 |
+| **7/28-8/10** | 界面美化 + 风格迁移（可选） |
+| **8/10-8/20** | 报告 + PPT + 演示视频 + 提交 |
 
 ---
 
-## 🧪 自测命令汇总
-
-每个人都可以独立测试自己的模块：
+## 🧪 自测命令
 
 ```bash
-python3 detector.py       # 🫵 组长 - 测试物体检测
-python3 classifier.py     # 🧑 A - 测试图像分类
-python3 ocr.py            # 🧑 A - 测试文字识别
-python3 face_detect.py    # 🧑 B - 测试人脸检测
-python3 style_transfer.py # 🧑 B - 测试风格迁移
-python3 app.py            # 全员 - 启动完整应用
+python3 detector.py       # 测试物体检测（组长）
+python3 classifier.py     # 测试图像分类（A）
+python3 ocr.py            # 测试文字识别（A）
+python3 face_detect.py    # 测试人脸检测（B）
+python3 style_transfer.py # 测试风格迁移（B，可选）
+python3 app.py            # 启动完整应用
 ```
 
 ---
 
-## ❓ FAQ
+## ❓ 常见问题
 
-**Q: pip3 装东西报错怎么办？**
-A: 先在群里问，大概率是：网络问题（换个源）、版本问题（升级 pip）、或者少装了啥。
+**Q: pip3 安装报错？**
+A: 可能是网络问题（换国内源）、版本问题（升级 pip）、或缺少依赖。在群里沟通。
 
-**Q: 模型下载很慢怎么办？**
-A: 第一次下载需要等。YOLO（6MB）、ResNet（100MB）、PaddleOCR（~50MB）。换个快的 WiFi 或者用手机热点试试。
+**Q: 模型下载太慢？**
+A: 首次下载需等待：YOLO（6MB）、ResNet（100MB）、PaddleOCR（~50MB）。建议使用稳定网络。
 
-**Q: 我改完代码 push 报错怎么办？**
-A: 先 `git pull` 再 `git push`。如果还有问题，在群里喊。
+**Q: git push 报错？**
+A: 先 `git pull` 再重试 `git push`。
 
-**Q: 完全不会 Python / 看不懂代码怎么办？**
-A: 不需要全看懂。你只需要：找到你的文件 → 运行它 → 确保不报错 → 告诉组长。代码已经有框架了。
+**Q: 代码看不太懂？**
+A: 代码已有完整框架，只需运行自测确认功能正常即可，不需要完全理解每行代码的含义。
