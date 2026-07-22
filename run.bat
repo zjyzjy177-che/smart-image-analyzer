@@ -1,49 +1,56 @@
 @echo off
 REM ==============================================
-REM 智能图片分析网站 — 一键启动脚本 (Windows)
-REM 负责人：组员 B
-REM 用法：双击运行 run.bat
+REM Smart Image Analyzer - One-click Launcher (Windows)
+REM Maintainer: Member B
+REM Usage: Double-click run.bat
 REM ==============================================
 
-echo ========================================
-echo   🖼️  智能图片分析网站 - 启动中...
-echo ========================================
+title Smart Image Analyzer
 
-REM 检查 Python
+echo ========================================
+echo   Smart Image Analyzer - Starting...
+echo ========================================
+echo.
+
+REM Check Python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ 未找到 Python，请先安装 Python 3.9+
+    echo [ERROR] Python not found. Please install Python 3.9+
     pause
     exit /b 1
 )
 
-echo ✅ Python 版本:
+echo [OK] Python version:
 python --version
+echo.
 
-REM 检查依赖
-echo 📦 检查依赖...
-python -c "import torch; import ultralytics; import gradio; import cv2" 2>nul
+REM Check dependencies
+echo [INFO] Checking dependencies...
+python -c "import torch; import ultralytics; import gradio; import cv2; import numpy; import PIL; import facenet_pytorch" 2>nul
 if %errorlevel% neq 0 (
-    echo ⚠️  依赖未完全安装，正在安装...
-    pip install -r requirements.txt
+    echo [WARN] Dependencies missing, installing...
+    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
     if %errorlevel% neq 0 (
-        echo ❌ 依赖安装失败，请手动运行: pip install -r requirements.txt
+        echo [ERROR] Install failed. Try: pip install -r requirements.txt
         pause
         exit /b 1
     )
-    echo ✅ 依赖安装完成
+    echo [OK] Dependencies installed
 ) else (
-    echo ✅ 依赖已安装
+    echo [OK] Dependencies ready
 )
 
-REM 创建目录
+REM Create directories
 if not exist images\sample mkdir images\sample
 
 echo.
-echo 🚀 正在启动应用...
-echo    本地访问: http://localhost:7860
-echo    按 Ctrl+C 停止服务
+echo [INFO] Starting application...
+echo   Open http://localhost:7860 in your browser
+echo   Press Ctrl+C to stop
 echo.
+
+REM Open browser after a short delay
+start "" http://localhost:7860
 
 python app.py
 pause

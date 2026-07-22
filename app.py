@@ -13,11 +13,11 @@ from PIL import Image
 from detector import detect_objects
 # from classifier import classify_image     # A 负责
 # from ocr import extract_text              # A 负责
-# from face_detect import detect_faces      # B 负责
-# from style_transfer import transfer_style # B 负责（加分项）
+from face_detect import detect_faces      # B 负责
+from style_transfer import transfer_style  # B 负责（加分项）
 
 
-def process_image(image, mode, conf_threshold):
+def process_image(image, mode, conf_threshold, style_name):
     """
     核心处理函数：根据选择的功能模式调用不同的模块
 
@@ -25,6 +25,7 @@ def process_image(image, mode, conf_threshold):
         image: 输入图片 (numpy array)
         mode: 功能模式
         conf_threshold: 置信度阈值
+        style_name: 风格名称（仅风格迁移使用）
 
     返回:
         处理后的图片 + 结果描述文字
@@ -64,19 +65,16 @@ def process_image(image, mode, conf_threshold):
     elif mode == "😃 人脸检测":
         # === B 做的功能 ===
         # TODO: B 实现后取消注释
-        # result_image, faces = detect_faces(image)
-        # if faces:
-        #     description = f"✅ 检测到 {len(faces)} 张人脸"
-        # else:
-        #     description = "未检测到人脸"
-        description = "⏳ 人脸检测模块开发中（组员B）"
+        result_image, faces = detect_faces(image)
+        if faces:
+            description = f"Detected {len(faces)} face(s)"
+        else:
+            description = "No face detected"
 
     elif mode == "🎨 风格迁移":
         # === B 做的功能（加分项）===
-        # TODO: B 实现后取消注释
-        # result_image = transfer_style(image)
-        # description = "✅ 风格迁移完成！"
-        description = "⏳ 风格迁移模块开发中（组员B）"
+        result_image = transfer_style(image, style_name)
+        description = f"Style: {style_name}"
 
     return result_image, description
 
@@ -160,6 +158,12 @@ with gr.Blocks(
                 label="🎚️ 置信度阈值（仅物体检测有效）",
             )
 
+            style_choice = gr.Dropdown(
+                choices=["素描·黑白线条画", "二次元·动漫风格"],
+                label="🎨 风格选择（仅风格迁移有效）",
+                value="素描·黑白线条画",
+            )
+
             submit_btn = gr.Button("🚀 开始分析", variant="primary", size="lg")
 
     # ---------- 结果显示 ----------
@@ -188,7 +192,7 @@ with gr.Blocks(
     # ---------- 绑定事件 ----------
     submit_btn.click(
         fn=process_image,
-        inputs=[image_input, mode, conf_threshold],
+        inputs=[image_input, mode, conf_threshold, style_choice],
         outputs=[image_output, result_text],
     )
 

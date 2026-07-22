@@ -1,21 +1,13 @@
-# 核心依赖
 torch>=2.0.0
 torchvision>=0.15.0
 ultralytics>=8.0.0
-gradio>=4.0.0
+gradio>=4.0.0,<5.0.0
 numpy>=1.24.0
 opencv-python>=4.8.0
 Pillow>=10.0.0
-
-# OCR
+huggingface-hub>=0.19.0,<1.0.0
+facenet-pytorch>=2.5.0
 paddlepaddle>=2.5.0
 paddleocr>=2.7.0
-
-# 人脸检测（用 OpenCV 内置模型，不需要额外安装）
-# opencv-python 已包含
-
-# FastAPI（可选，用于扩展为 REST 服务）
 fastapi>=0.100.0
 uvicorn>=0.23.0
-
-# 风格迁移（torchvision 已包含）

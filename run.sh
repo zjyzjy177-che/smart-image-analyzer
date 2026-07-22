@@ -1,45 +1,53 @@
 #!/bin/bash
 # ==============================================
-# 智能图片分析网站 — 一键启动脚本 (macOS / Linux)
-# 负责人：组员 B
-# 用法：在终端运行: bash run.sh
+# Smart Image Analyzer - One-click Launcher (macOS / Linux)
+# Maintainer: Member B
+# Usage: bash run.sh
 # ==============================================
 
 echo "========================================"
-echo "  🖼️  智能图片分析网站 - 启动中..."
+echo "  Smart Image Analyzer - Starting..."
 echo "========================================"
+echo ""
 
-# 检查 Python
+# Check Python
 if ! command -v python3 &> /dev/null; then
-    echo "❌ 未找到 Python，请先安装 Python 3.9+"
+    echo "[ERROR] Python3 not found. Please install Python 3.9+"
     exit 1
 fi
 
-echo "✅ Python 版本: $(python3 --version)"
+echo "[OK] Python version: $(python3 --version)"
+echo ""
 
-# 检查依赖是否安装
-echo "📦 检查依赖..."
-python3 -c "import torch; import ultralytics; import gradio; import cv2" 2>/dev/null
+# Check dependencies
+echo "[INFO] Checking dependencies..."
+python3 -c "import torch; import ultralytics; import gradio; import cv2; import numpy; import PIL; import facenet_pytorch" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "⚠️  依赖未完全安装，正在安装..."
-    pip3 install -r requirements.txt
+    echo "[WARN] Dependencies missing, installing..."
+    pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
     if [ $? -ne 0 ]; then
-        echo "❌ 依赖安装失败，请手动运行: pip install -r requirements.txt"
+        echo "[ERROR] Install failed. Try: pip3 install -r requirements.txt"
         exit 1
     fi
-    echo "✅ 依赖安装完成"
+    echo "[OK] Dependencies installed"
 else
-    echo "✅ 依赖已安装"
+    echo "[OK] Dependencies ready"
 fi
 
-# 创建必要目录
+# Create directories
 mkdir -p images/sample
 
-# 启动应用
 echo ""
-echo "🚀 正在启动应用..."
-echo "   本地访问: http://localhost:7860"
-echo "   按 Ctrl+C 停止服务"
+echo "[INFO] Starting application..."
+echo "  Open http://localhost:7860 in your browser"
+echo "  Press Ctrl+C to stop"
 echo ""
+
+# Open browser (platform-specific)
+if command -v open &> /dev/null; then
+    open http://localhost:7860
+elif command -v xdg-open &> /dev/null; then
+    xdg-open http://localhost:7860
+fi
 
 python3 app.py
