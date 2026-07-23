@@ -34,3 +34,5 @@ images/output/
 *.jpeg
 !images/sample/*.jpg
 !images/sample/*.png
+!images/badge.png
+!images/bg.jpg

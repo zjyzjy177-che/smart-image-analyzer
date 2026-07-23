@@ -69,7 +69,7 @@ CSS = f"""
     --card:#fff; --side:#fff; --bd:#d0dae8;
     --sd:rgba(0,85,179,0.07); --bgh:#e8f0fa;
 }}
-* {{ font-family:'微软雅黑','Microsoft YaHei',Arial,sans-serif; box-sizing:border-box; }}
+* {{ font-family:'微软雅黑','Microsoft YaHei','PingFang SC','Noto Sans SC',Arial,sans-serif; box-sizing:border-box; }}
 body {{ background:var(--blue-bg)!important; }}
 .gradio-container {{ max-width:1440px!important; margin:0 auto; background:transparent!important; padding:0!important; }}
 
@@ -86,7 +86,7 @@ body {{ background:var(--blue-bg)!important; }}
 .tdiv {{ color:var(--text3); font-weight:100; font-size:1.3em; }}
 .tsub {{ display:flex; gap:16px; flex-wrap:wrap; margin-top:4px; }}
 .tsub .en {{ font-family:'Times New Roman',Times,serif; font-size:0.9em; color:var(--text2); letter-spacing:1px; font-style:italic; }}
-.tsub .tag {{ font-family:'宋体','Noto Serif SC',serif; font-size:0.85em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
+.tsub .tag {{ font-family:'宋体','SimSun','Noto Serif SC',serif; font-size:0.85em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
 
 /* Content */
 .body-wrap {{ display:flex!important; flex-direction:row!important; padding:20px 28px!important; position:relative; min-height:600px; }}
@@ -140,13 +140,14 @@ button#sb-btn:hover {{ background:var(--blue-dark)!important; transform:translat
 
 /* Footer */
 .footer {{ text-align:center; padding:16px 28px 12px; border-top:1px solid var(--bd); background:var(--card); }}
-.f1 {{ font-family:'楷体','KaiTi','Noto Serif SC',serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
+.f1 {{ font-family:'楷体','KaiTi','STKaiti','Noto Serif SC',serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
 .f2 {{ font-family:Arial,sans-serif; font-size:0.68em; color:var(--text3); margin-top:2px; }}
 
 /* Gradio overrides */
 .gr-form,.gr-box,.gr-group {{ border:none!important; box-shadow:none!important; background:transparent!important; }}
 label {{ font-weight:500!important; color:var(--text)!important; font-size:0.95em!important; }}
-textarea {{ font-family:'楷体','KaiTi','Noto Serif SC',serif!important; font-size:1.2em!important; line-height:1.8!important; background:var(--card)!important; color:#CC3300!important; text-align:center!important; font-weight:600!important; }}
+textarea {{ font-family:'楷体','KaiTi','STKaiti','Noto Serif SC',serif!important; font-size:1.2em!important; line-height:1.8!important; background:var(--card)!important; color:#CC3300!important; text-align:center!important; font-weight:600!important; }}
+.gr-box textarea, .gr-form textarea, .svelte-1l0r20v textarea {{ color:#CC3300!important; }}
 textarea::placeholder {{ text-align:center!important; color:var(--text3)!important; font-weight:400!important; }}
 input[type=range] {{ accent-color:var(--blue)!important; }}
 footer,.gradio-footer,.built-with,.footer-nav {{ display:none!important; }}
