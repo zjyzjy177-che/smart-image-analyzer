@@ -63,7 +63,7 @@ def process(image, mode, thresh, style):
 def _html(text):
     """将纯文本包装为居中朱红色 HTML"""
     escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
-    return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:\"Microsoft YaHei\",微软雅黑,\"PingFang SC\",sans-serif;line-height:1.8;padding:16px;'>{escaped}</div>"
+    return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:\"Heiti SC\",\"STHeiti\",SimHei,黑体,sans-serif;line-height:1.8;padding:16px;'>{escaped}</div>"
 
 def on_mode_change(mode):
     return gr.update(visible=(mode == "风格迁移"))
