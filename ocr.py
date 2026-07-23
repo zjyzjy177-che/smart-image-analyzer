@@ -15,6 +15,8 @@ import numpy as np
 
 _ocr = None
 _backend = None
+# 多语系备用 Reader（EasyOCR 每个 Reader 只能支持一个非拉丁语系 + 英语）
+_easy_readers: dict = {}
 
 
 def get_ocr():
@@ -50,8 +52,35 @@ def get_ocr():
     try:
         import easyocr
 
-        _ocr = easyocr.Reader(["ch_sim", "en"])
-        _backend = "easyocr"
+        # EasyOCR 一个 Reader 只能混合一个非拉丁语系。
+        # 因此为不同区域分别创建 Reader，识别时逐个尝试。
+        lang_groups = [
+            ("en",          ["en"]),                               # 纯英语（最快）
+            ("ch_sim",      ["ch_sim","en"]),                      # 简体中文 + 英语
+            ("ch_tra",      ["ch_tra","en"]),                      # 繁体中文 + 英语
+            ("ja",          ["ja","en"]),                          # 日语 + 英语
+            ("ko",          ["ko","en"]),                          # 韩语 + 英语
+            ("th",          ["th","en"]),                          # 泰语 + 英语
+            ("europe",      ["en","fr","de","es","pt","it","nl","ru","pl"]),  # 欧洲多语
+            ("other",       ["en","ar","hi","vi","tr"]),           # 其他主要语言
+        ]
+        for key, langs in lang_groups:
+            try:
+                _easy_readers[key] = easyocr.Reader(langs, verbose=False)
+            except Exception:
+                pass  # 某个语言组加载失败不影响其他组
+
+        if _easy_readers:
+            # 默认用第一个可用的 Reader（纯英语）
+            _ocr = list(_easy_readers.values())[0]
+            _backend = "easyocr"
+            return _ocr
+
+        raise RuntimeError("EasyOCR 无可用 Reader")
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise RuntimeError(
+            "未找到可用的 OCR 引擎，请安装 paddlepaddle/paddleocr 或 easyocr。"
+        ) from exc
         return _ocr
     except (ImportError, ModuleNotFoundError) as exc:
         raise RuntimeError(
@@ -121,7 +150,20 @@ def _parse_paddle_result(raw_result) -> List[Tuple[Sequence, str, float]]:
 def _recognise(image_bgr: np.ndarray):
     engine = get_ocr()
     if _backend == "easyocr":
-        return [(box, text, score) for box, text, score in engine.readtext(image_bgr)]
+        # 先尝试默认 Reader，若无结果则逐个尝试其他语系 Reader
+        all_results = [(box, text, score) for box, text, score in engine.readtext(image_bgr)]
+        if all_results:
+            return all_results
+        for key, reader in _easy_readers.items():
+            if reader is engine:
+                continue
+            try:
+                results = [(box, text, score) for box, text, score in reader.readtext(image_bgr)]
+                if results:
+                    return results
+            except Exception:
+                continue
+        return []
 
     if hasattr(engine, "predict"):
         try:

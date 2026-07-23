@@ -44,61 +44,18 @@ def process(image, mode, thresh, style):
             lines = [f"检测到 {len(dets)} 个物体 / {len(dets)} objects:"]
             for o in dets:
                 lines.append(f"· {o['label']}  ({o['confidence']:.1%})")
-            d = "<br>".join(lines)
+            d = "\n".join(lines)
         else:
             d = "未检测到物体 / No objects detected"
     elif mode == "图像分类":
         try:
-            result = classify_topk(
-                image, top_k=5, confidence_threshold=thresh,
-            )
+            result = classify_topk(image, top_k=3, confidence_threshold=thresh)
             top = result["predictions"][0]
             top_name = top["label_zh"] or top["category_zh"]
-            hint = result["content_hint"]
-            description = result["description"]
-            primary_name = top_name if result["accepted"] else "结果不确定"
-            lines = []
-            if description["available"]:
-                lines.extend([
-                    f"场景大类：{description['scene_category']}",
-                    f"整图描述：{description['summary_zh']}",
-                    f"原始描述：{description['caption_en']}",
-                    "",
-                ])
-            else:
-                lines.extend([
-                    "整图描述：模型暂不可用，当前显示基础分类结果",
-                    "",
-                ])
-            lines.append(f"辅助分类：{primary_name}")
-            if hint:
-                lines.append(
-                    f"补充内容判断：{hint['category_zh']}（{hint['description']}）"
-                )
-                lines.append(f"分类置信度：{top['confidence']:.1%}")
-                lines.append(f"当前阈值：{thresh:.0%}")
-                lines.append("")
-                lines.append("ImageNet 物体候选：")
-            else:
-                lines.extend([
-                f"细分类：{top['label_en']}",
-                f"置信度：{top['confidence']:.1%}（{result['confidence_level']}）",
-                f"当前阈值：{thresh:.0%}",
-                "",
-                "Top-5 候选：",
-                ])
-            for item in result["predictions"]:
-                name = item["label_zh"] or item["category_zh"]
-                lines.append(
-                    f"{item['rank']}. {name} / {item['label_en']} — "
-                    f"{item['confidence']:.1%}"
-                )
-            if result["uncertain"] and not hint:
-                lines.extend([
-                    "",
-                    f"提示：最高置信度 {top['confidence']:.1%} 低于设置的"
-                    f" {thresh:.0%} 阈值，本次不采纳为可靠分类结果。",
-                ])
+            lines = [f"识别结果：{top_name} / {top['label_en']}"]
+            lines.append(f"置信度：{top['confidence']:.1%}（{result['confidence_level']}）")
+            if result["uncertain"]:
+                lines.append(f"提示：置信度低于阈值 {thresh:.0%}，结果仅供参考")
             d = "\n".join(lines)
         except Exception as exc:
             d = f"图像分类失败 / Classification failed:\n{exc}"
@@ -127,7 +84,7 @@ def process(image, mode, thresh, style):
             lines = [f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)"]
             for i, (x, y, w, h) in enumerate(faces, 1):
                 lines.append(f"Face {i}: ({x},{y}) {w}×{h}")
-            d = "<br>".join(lines)
+            d = "\n".join(lines)
         else:
             d = "未检测到人脸 / No face detected"
     elif mode == "风格迁移":
@@ -232,7 +189,8 @@ label {{ font-weight:500!important; color:var(--text)!important; font-size:0.95e
 input[type=range] {{ accent-color:var(--blue)!important; }}
 footer,.gradio-footer,.built-with,.footer-nav {{ display:none!important; }}
 /* 隐藏 Radio — 移到屏幕外不占空间，但保持可点击 */
-.gr-box:has(.gr-radio), .gr-form:has(.gr-radio) {{ position:absolute!important; left:-9999px!important; top:0; width:0; height:0; overflow:hidden; opacity:0; pointer-events:none; }}
+#hidden-mode-radio {{ position:absolute!important; left:-9999px!important; top:0; width:0; height:0; overflow:hidden; opacity:0; pointer-events:none; }}
+#hidden-mode-radio > div {{ margin:0!important; padding:0!important; }}
 
 @media (max-width:900px) {{
     .body-wrap {{ flex-direction:column!important; padding:10px!important; }}
@@ -242,7 +200,7 @@ footer,.gradio-footer,.built-with,.footer-nav {{ display:none!important; }}
 """
 
 
-# ========== 侧栏点击事件（只有这个需要一点点 JS） ==========
+# ========== 侧栏点击事件 ==========
 HEAD = """
 <script>
 document.addEventListener('click', function(e){
@@ -261,7 +219,7 @@ document.addEventListener('click', function(e){
 
 # ========== 构建界面 ==========
 
-with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS, head=HEAD) as app:
+with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
 
     # ===== 顶栏 =====
     gr.HTML(f"""
@@ -302,7 +260,7 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
 
             mode = gr.Radio(
                 choices=["物体检测","图像分类","文字识别 (OCR)","人脸检测","风格迁移"],
-                value="物体检测", container=False,
+                value="物体检测", container=False, elem_id="hidden-mode-radio",
             )
 
             gr.HTML('<div class="sidebar-hd">⚙️ 参数 / Settings</div>')
@@ -310,13 +268,14 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
             conf_threshold = gr.Slider(
                 minimum=0.1, maximum=0.9, value=0.4, step=0.05,
                 label="置信度阈值 / Confidence Threshold",
-                info="拖动后自动刷新当前分析结果",
+                info="低→更多检测，高→更精准 / Lower=more, Higher=precise",
             )
 
             style_choice = gr.Dropdown(
                 choices=["素描·黑白线条画","二次元·动漫风格"],
                 label="风格 / Style", value="素描·黑白线条画", visible=False,
             )
+
             sb = gr.Button("🚀 开始分析 / Analyze", variant="primary", elem_id="sb-btn")
 
         # -- 主区 --
@@ -356,11 +315,6 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
 
     # ===== 事件 =====
     sb.click(fn=process, inputs=[image_input, mode, conf_threshold, style_choice], outputs=[image_output, result_text])
-    conf_threshold.change(
-        fn=process,
-        inputs=[image_input, mode, conf_threshold, style_choice],
-        outputs=[image_output, result_text],
-    )
     mode.change(fn=on_mode_change, inputs=mode, outputs=style_choice)
 
 
@@ -369,4 +323,4 @@ if __name__ == "__main__":
     print("  智能图片分析系统 — 北京交通大学")
     print("  本地: http://localhost:7860")
     print("="*50)
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True)
+    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True, css=CSS, head=HEAD)

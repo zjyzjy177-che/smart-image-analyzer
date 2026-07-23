@@ -16,9 +16,9 @@ def get_model():
     global _model
     if _model is None:
         print("🔄 正在加载 YOLOv8 模型（首次加载可能需要一些时间）...")
-        # 使用 yolov8n.pt — nano版本，速度最快，体积最小
-        # 如果想更准确，可以换成 yolov8s.pt (small) 或 yolov8m.pt (medium)
-        _model = YOLO("yolov8n.pt")
+        # 使用 yolov8m.pt — medium 版本，精度显著优于 nano，速度适中
+        # 可选: yolov8n.pt(最快) / yolov8s.pt / yolov8m.pt ⭐ / yolov8l.pt / yolov8x.pt(最准)
+        _model = YOLO("yolov8m.pt")
         print("✅ YOLOv8 模型加载完成！")
     return _model
 
