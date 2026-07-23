@@ -5,12 +5,17 @@ app.py — 智能图片分析系统
 """
 
 import base64
+import os
+
+# 本地课程项目无需发送 Gradio 使用统计，避免离线环境出现联网超时日志。
+os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
+
 import gradio as gr
 import numpy as np
 
 from detector import detect_objects
-# from classifier import classify_image
-# from ocr import extract_text
+from classifier import classify_topk
+from ocr import extract_text
 from face_detect import detect_faces
 from style_transfer import transfer_style
 
@@ -43,9 +48,79 @@ def process(image, mode, thresh, style):
         else:
             d = "未检测到物体 / No objects detected"
     elif mode == "图像分类":
-        d = "模块开发中（组员A 岳思铭）"
+        try:
+            result = classify_topk(
+                image, top_k=5, confidence_threshold=thresh,
+            )
+            top = result["predictions"][0]
+            top_name = top["label_zh"] or top["category_zh"]
+            hint = result["content_hint"]
+            description = result["description"]
+            primary_name = top_name if result["accepted"] else "结果不确定"
+            lines = []
+            if description["available"]:
+                lines.extend([
+                    f"场景大类：{description['scene_category']}",
+                    f"整图描述：{description['summary_zh']}",
+                    f"原始描述：{description['caption_en']}",
+                    "",
+                ])
+            else:
+                lines.extend([
+                    "整图描述：模型暂不可用，当前显示基础分类结果",
+                    "",
+                ])
+            lines.append(f"辅助分类：{primary_name}")
+            if hint:
+                lines.append(
+                    f"补充内容判断：{hint['category_zh']}（{hint['description']}）"
+                )
+                lines.append(f"分类置信度：{top['confidence']:.1%}")
+                lines.append(f"当前阈值：{thresh:.0%}")
+                lines.append("")
+                lines.append("ImageNet 物体候选：")
+            else:
+                lines.extend([
+                f"细分类：{top['label_en']}",
+                f"置信度：{top['confidence']:.1%}（{result['confidence_level']}）",
+                f"当前阈值：{thresh:.0%}",
+                "",
+                "Top-5 候选：",
+                ])
+            for item in result["predictions"]:
+                name = item["label_zh"] or item["category_zh"]
+                lines.append(
+                    f"{item['rank']}. {name} / {item['label_en']} — "
+                    f"{item['confidence']:.1%}"
+                )
+            if result["uncertain"] and not hint:
+                lines.extend([
+                    "",
+                    f"提示：最高置信度 {top['confidence']:.1%} 低于设置的"
+                    f" {thresh:.0%} 阈值，本次不采纳为可靠分类结果。",
+                ])
+            d = "\n".join(lines)
+        except Exception as exc:
+            d = f"图像分类失败 / Classification failed:\n{exc}"
     elif mode == "文字识别 (OCR)":
-        d = "模块开发中（组员A 岳思铭）"
+        try:
+            text, r, details = extract_text(
+                image, confidence_threshold=thresh, return_details=True,
+            )
+            lines = [
+                f"OCR 置信度阈值：{thresh:.0%}",
+                f"保留文字：{len(details['items'])} 段",
+            ]
+            if details["filtered_count"]:
+                lines.append(f"已过滤低置信文字：{details['filtered_count']} 段")
+            lines.extend(["", "识别结果："])
+            for item in details["items"]:
+                lines.append(f"· {item['text']}（{item['confidence']:.1%}）")
+            if not details["items"]:
+                lines.append(text)
+            d = "\n".join(lines)
+        except Exception as exc:
+            d = f"文字识别失败 / OCR failed:\n{exc}"
     elif mode == "人脸检测":
         r, faces = detect_faces(image, thresh)
         if faces:
@@ -235,7 +310,7 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
             conf_threshold = gr.Slider(
                 minimum=0.1, maximum=0.9, value=0.4, step=0.05,
                 label="置信度阈值 / Confidence Threshold",
-                info="物体检测/人脸检测通用 / Object & Face Detection",
+                info="拖动后自动刷新当前分析结果",
             )
 
             style_choice = gr.Dropdown(
@@ -281,6 +356,11 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
 
     # ===== 事件 =====
     sb.click(fn=process, inputs=[image_input, mode, conf_threshold, style_choice], outputs=[image_output, result_text])
+    conf_threshold.change(
+        fn=process,
+        inputs=[image_input, mode, conf_threshold, style_choice],
+        outputs=[image_output, result_text],
+    )
     mode.change(fn=on_mode_change, inputs=mode, outputs=style_choice)
 
 
