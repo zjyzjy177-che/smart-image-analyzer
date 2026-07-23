@@ -12,26 +12,31 @@ echo   Smart Image Analyzer - Starting...
 echo ========================================
 echo.
 
-REM Check Python
-python --version >nul 2>&1
+REM Prefer Windows Python Launcher. It works even when python.exe is not on PATH.
+set "PYTHON_CMD=py -3"
+%PYTHON_CMD% --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Python not found. Please install Python 3.9+
-    pause
-    exit /b 1
+    set "PYTHON_CMD=python"
+    %PYTHON_CMD% --version >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [ERROR] Python not found. Please install Python 3.9+
+        pause
+        exit /b 1
+    )
 )
 
 echo [OK] Python version:
-python --version
+%PYTHON_CMD% --version
 echo.
 
 REM Check dependencies
 echo [INFO] Checking dependencies...
-python -c "import torch; import ultralytics; import gradio; import cv2; import numpy; import PIL; import facenet_pytorch" 2>nul
+%PYTHON_CMD% -c "import torch, ultralytics, gradio, cv2, numpy, PIL, facenet_pytorch, transformers, easyocr; assert int(gradio.__version__.split('.')[0]) >= 6; assert int(transformers.__version__.split('.')[0]) >= 5" 2>nul
 if %errorlevel% neq 0 (
-    echo [WARN] Dependencies missing, installing...
-    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
+    echo [WARN] Dependencies missing or outdated, installing...
+    %PYTHON_CMD% -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
     if %errorlevel% neq 0 (
-        echo [ERROR] Install failed. Try: pip install -r requirements.txt
+        echo [ERROR] Install failed. Try: py -3 -m pip install -r requirements.txt
         pause
         exit /b 1
     )
@@ -52,5 +57,5 @@ echo.
 REM Open browser after a short delay
 start "" http://localhost:7860
 
-python app.py
+%PYTHON_CMD% app.py
 pause

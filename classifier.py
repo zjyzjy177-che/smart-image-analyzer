@@ -23,6 +23,9 @@ _labels = None
 _caption_model = None
 _caption_processor = None
 _caption_error = None
+_translator_model = None
+_translator_tokenizer = None
+_translator_error = None
 
 
 # ImageNet 中常见类别的中文细分类。未列出的类别仍会显示官方英文名称，
@@ -266,33 +269,121 @@ def _caption_summary_zh(caption: str) -> str:
     return f"{_scene_category(caption)}"
 
 
-def describe_image(image: np.ndarray) -> Dict:
+def translate_caption_to_chinese(caption: str) -> str:
+    """使用离线 Marian 模型翻译 BLIP 英文描述，失败时才使用规则摘要。"""
+    global _translator_model, _translator_tokenizer, _translator_error
+    if not caption:
+        return ""
+
+    try:
+        if _translator_model is None:
+            if _translator_error is not None:
+                return _caption_summary_zh(caption)
+
+            from huggingface_hub import snapshot_download
+            from transformers import MarianMTModel, MarianTokenizer
+
+            model_name = "Helsinki-NLP/opus-mt-en-zh"
+            print("[INFO] 正在加载英译中模型...")
+            try:
+                model_source = snapshot_download(
+                    model_name,
+                    local_files_only=True,
+                )
+                local_only = True
+            except Exception:
+                model_source = model_name
+                local_only = False
+
+            _translator_tokenizer = MarianTokenizer.from_pretrained(
+                model_source,
+                local_files_only=local_only,
+            )
+            _translator_model = MarianMTModel.from_pretrained(
+                model_source,
+                local_files_only=local_only,
+            )
+            _translator_model.eval()
+            print("[OK] 英译中模型加载完成")
+
+        inputs = _translator_tokenizer(
+            [caption],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        )
+        with torch.inference_mode():
+            output_ids = _translator_model.generate(
+                **inputs,
+                max_length=64,
+                num_beams=3,
+            )
+        translation = _translator_tokenizer.batch_decode(
+            output_ids,
+            skip_special_tokens=True,
+        )[0].strip()
+        # 修正常见品牌和服饰在通用翻译模型中的直译。
+        translation = (
+            translation
+            .replace("红色公牛", "红牛")
+            .replace("赛车西装", "赛车服")
+        )
+        return translation or _caption_summary_zh(caption)
+    except Exception as exc:
+        _translator_error = str(exc)
+        print(f"[WARN] 英译中模型不可用，将使用简要中文描述：{exc}")
+        return _caption_summary_zh(caption)
+
+
+def describe_image(
+    image: np.ndarray,
+    confidence_threshold: float = 0.4,
+) -> Dict:
     """生成整张图片的语义描述；模型不可用时返回可解释的降级状态。"""
     model, processor = get_caption_model()
     if model is None:
         return {
             "available": False,
             "caption_en": None,
-            "summary_zh": "整图描述模型暂不可用",
+            "caption_zh": "整图描述模型暂不可用",
             "scene_category": None,
+            "description_confidence": 0.0,
+            "accepted": False,
             "error": _caption_error,
         }
 
     pil_image = _to_rgb_pil(image)
     inputs = processor(images=pil_image, return_tensors="pt")
     with torch.inference_mode():
-        output_ids = model.generate(
+        generation = model.generate(
             **inputs,
             max_new_tokens=30,
             num_beams=3,
             no_repeat_ngram_size=2,
+            return_dict_in_generate=True,
+            output_scores=True,
         )
+    output_ids = generation.sequences
+    transition_scores = model.compute_transition_scores(
+        output_ids,
+        generation.scores,
+        generation.beam_indices,
+        normalize_logits=True,
+    )
+    valid_scores = transition_scores[transition_scores < 0]
+    if valid_scores.numel():
+        description_confidence = float(torch.exp(valid_scores.mean()).item())
+    else:
+        description_confidence = 0.0
+
     caption = processor.decode(output_ids[0], skip_special_tokens=True).strip()
     return {
         "available": True,
         "caption_en": caption,
-        "summary_zh": _caption_summary_zh(caption),
+        "caption_zh": translate_caption_to_chinese(caption),
         "scene_category": _scene_category(caption),
+        "description_confidence": description_confidence,
+        "accepted": description_confidence >= confidence_threshold,
         "error": None,
     }
 
@@ -355,7 +446,7 @@ def classify_topk(
     accepted = predictions[0]["confidence"] >= confidence_threshold
     return {
         "predictions": predictions,
-        "description": describe_image(image),
+        "description": describe_image(image, confidence_threshold),
         "content_hint": _detect_content_hint(image),
         "confidence_level": level,
         "confidence_threshold": confidence_threshold,

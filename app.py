@@ -15,7 +15,7 @@ import numpy as np
 
 from detector import detect_objects
 from classifier import classify_topk
-from ocr import DEFAULT_LANGUAGE, LANGUAGE_PRESETS, extract_text
+from ocr import AUTO_LANGUAGE, DEFAULT_LANGUAGE, LANGUAGE_PRESETS, extract_text
 from face_detect import detect_faces
 from style_transfer import transfer_style
 
@@ -49,13 +49,54 @@ def process(image, mode, thresh, style, ocr_language=DEFAULT_LANGUAGE):
             d = "未检测到物体 / No objects detected"
     elif mode == "图像分类":
         try:
-            result = classify_topk(image, top_k=3, confidence_threshold=thresh)
+            result = classify_topk(image, top_k=5, confidence_threshold=thresh)
             top = result["predictions"][0]
             top_name = top["label_zh"] or top["category_zh"]
-            lines = [f"识别结果：{top_name} / {top['label_en']}"]
-            lines.append(f"置信度：{top['confidence']:.1%}（{result['confidence_level']}）")
-            if result["uncertain"]:
-                lines.append(f"提示：置信度低于阈值 {thresh:.0%}，结果仅供参考")
+            description = result["description"]
+            hint = result["content_hint"]
+
+            lines = []
+            if description["available"]:
+                description_status = (
+                    "可信" if description["accepted"] else "仅供参考"
+                )
+                lines.extend([
+                    f"场景大类：{description['scene_category']}"
+                    f"（{description_status}）",
+                    f"整图描述：{description['caption_zh']}",
+                    f"描述生成可信度："
+                    f"{description['description_confidence']:.1%}",
+                    "",
+                ])
+            else:
+                lines.extend([
+                    "整图描述模型暂不可用，当前显示基础分类结果",
+                    "",
+                ])
+
+            if hint:
+                lines.extend([
+                    f"补充内容判断：{hint['category_zh']}",
+                    f"检测信息：{hint['description']}",
+                    "",
+                ])
+
+            if result["accepted"]:
+                lines.append(f"主要分类：{top_name} / {top['label_en']}")
+            else:
+                lines.append("主要分类：结果不确定")
+                lines.append(
+                    f"最高候选：{top_name} / {top['label_en']}"
+                )
+            lines.extend(["", "Top-5 参考分类："])
+
+            for item in result["predictions"]:
+                name = item["label_zh"] or item["category_zh"]
+                lines.append(
+                    f"{item['rank']}. {name} / {item['label_en']} — "
+                    f"{item['confidence']:.1%}"
+                )
+
             d = "\n".join(lines)
         except Exception as exc:
             d = f"图像分类失败 / Classification failed:\n{exc}"
@@ -68,7 +109,11 @@ def process(image, mode, thresh, style, ocr_language=DEFAULT_LANGUAGE):
                 language_preset=ocr_language,
             )
             lines = [
-                f"OCR 语言：{details['language_preset']}",
+                (
+                    f"自动采用语言：{details['language_preset']}"
+                    if details["auto_detected"]
+                    else f"OCR 语言：{details['language_preset']}"
+                ),
                 f"OCR 置信度阈值：{thresh:.0%}",
                 f"保留文字：{len(details['items'])} 段",
             ]
@@ -299,9 +344,9 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
             )
 
             ocr_language = gr.Dropdown(
-                choices=list(LANGUAGE_PRESETS),
+                choices=[AUTO_LANGUAGE, *LANGUAGE_PRESETS],
                 label="OCR 语言 / OCR Language",
-                value=DEFAULT_LANGUAGE,
+                value=AUTO_LANGUAGE,
                 visible=False,
             )
 

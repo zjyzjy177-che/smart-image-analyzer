@@ -30,24 +30,36 @@ LANGUAGE_PRESETS = {
     "Tiếng Việt + English": ["vi", "en"],
 }
 DEFAULT_LANGUAGE = "简体中文 + English"
+AUTO_LANGUAGE = "自动检测（已安装语种）"
 _easy_readers: dict = {}
+_unavailable_local_presets: set = set()
+_last_auto_preset = None
 
 
-def _get_easyocr(language_preset: str):
+def _get_easyocr(language_preset: str, download_enabled: bool = True):
     if language_preset not in LANGUAGE_PRESETS:
         raise ValueError(f"不支持的 OCR 语言预设：{language_preset}")
     key = tuple(LANGUAGE_PRESETS[language_preset])
     if key not in _easy_readers:
         import easyocr
 
-        print(f"[INFO] 正在加载 OCR 语言模型：{language_preset}")
-        _easy_readers[key] = easyocr.Reader(list(key), verbose=False)
+        action = "加载" if download_enabled else "检查"
+        print(f"[INFO] 正在{action} OCR 语言模型：{language_preset}")
+        _easy_readers[key] = easyocr.Reader(
+            list(key),
+            verbose=False,
+            download_enabled=download_enabled,
+        )
+    if download_enabled:
+        _unavailable_local_presets.discard(language_preset)
     return _easy_readers[key]
 
 
 def get_ocr(language_preset: str = DEFAULT_LANGUAGE):
     """加载并缓存可用的 OCR 引擎。"""
     global _ocr, _backend
+    if language_preset == AUTO_LANGUAGE:
+        raise ValueError("自动模式应通过 _auto_recognise() 调用")
     if language_preset != DEFAULT_LANGUAGE:
         _backend = "easyocr"
         return _get_easyocr(language_preset)
@@ -147,36 +159,123 @@ def _parse_paddle_result(raw_result) -> List[Tuple[Sequence, str, float]]:
     return items
 
 
+def _read_easyocr(engine, image_bgr: np.ndarray):
+    return [
+        (box, text, score)
+        for box, text, score in engine.readtext(
+            image_bgr,
+            detail=1,
+            paragraph=False,
+            decoder="greedy",
+            text_threshold=0.45,
+            low_text=0.20,
+            link_threshold=0.30,
+            canvas_size=2560,
+            mag_ratio=1.5,
+            contrast_ths=0.05,
+            adjust_contrast=0.7,
+        )
+    ]
+
+
+def _script_coverage(text: str, preset: str) -> float:
+    """统计识别文本与目标文字体系的匹配程度。"""
+    chars = [char for char in text if char.isalpha()]
+    if not chars:
+        return 0.0
+
+    def in_ranges(char, ranges):
+        code = ord(char)
+        return any(start <= code <= end for start, end in ranges)
+
+    ranges_by_preset = {
+        "简体中文 + English": [(0x3400, 0x9FFF)],
+        "繁體中文 + English": [(0x3400, 0x9FFF)],
+        "日本語 + English": [(0x3040, 0x30FF), (0x3400, 0x9FFF)],
+        "한국어 + English": [(0xAC00, 0xD7AF)],
+        "Русский + English": [(0x0400, 0x052F)],
+        "العربية + English": [(0x0600, 0x06FF)],
+        "हिन्दी + English": [(0x0900, 0x097F)],
+        "ไทย + English": [(0x0E00, 0x0E7F)],
+        "Tiếng Việt + English": [(0x0041, 0x024F), (0x1E00, 0x1EFF)],
+        "Latin 欧洲语言": [(0x0041, 0x024F), (0x1E00, 0x1EFF)],
+    }
+    ranges = ranges_by_preset.get(preset, [])
+    matched = sum(in_ranges(char, ranges) for char in chars)
+    # English is included in every Reader, so ASCII letters remain weak evidence.
+    ascii_letters = sum(char.isascii() and char.isalpha() for char in chars)
+    return min(1.0, (matched + ascii_letters * 0.25) / len(chars))
+
+
+def _is_ascii_text(text: str) -> bool:
+    letters = [char for char in text if char.isalpha()]
+    return bool(letters) and all(char.isascii() for char in letters)
+
+
+def _auto_recognise(image_bgr: np.ndarray):
+    """按可信度逐个尝试本地模型，得到可靠结果后立即停止。"""
+    global _last_auto_preset
+    candidates = []
+    preset_order = list(LANGUAGE_PRESETS)
+    if _last_auto_preset in preset_order:
+        preset_order.remove(_last_auto_preset)
+        preset_order.insert(0, _last_auto_preset)
+
+    for preset in preset_order:
+        if preset in _unavailable_local_presets:
+            continue
+        try:
+            reader = _get_easyocr(preset, download_enabled=False)
+            results = _read_easyocr(reader, image_bgr)
+        except Exception:
+            _unavailable_local_presets.add(preset)
+            continue
+        if not results:
+            continue
+
+        text = " ".join(item[1] for item in results if item[1])
+        confidences = [float(item[2]) for item in results if item[1]]
+        if not confidences:
+            continue
+        mean_confidence = sum(confidences) / len(confidences)
+        coverage = _script_coverage(text, preset)
+        # 置信度为主，文字体系匹配度用于避免英文模型把外文误认成乱码。
+        score = mean_confidence * (0.55 + 0.45 * coverage)
+        candidates.append((score, preset, results))
+
+        # 所有 Reader 都包含英语，高可信纯 ASCII 无需再跑其他语言模型。
+        reliable_english = _is_ascii_text(text) and mean_confidence >= 0.82
+        # 对应文字体系高度匹配且置信度较高时也可直接采纳。
+        reliable_script = coverage >= 0.55 and mean_confidence >= 0.78
+        if reliable_english or reliable_script:
+            _last_auto_preset = preset
+            return results, preset
+
+    if not candidates:
+        return [], None
+    _, preset, results = max(candidates, key=lambda item: item[0])
+    _last_auto_preset = preset
+    return results, preset
+
+
 def _recognise(image_bgr: np.ndarray, language_preset: str):
+    if language_preset == AUTO_LANGUAGE:
+        results, detected_preset = _auto_recognise(image_bgr)
+        return results, detected_preset
+
     engine = get_ocr(language_preset)
     if _backend == "easyocr":
-        # 降低文字检测阶段门槛并放大图片，改善小字、浅色字和低对比文字漏检。
-        return [
-            (box, text, score)
-            for box, text, score in engine.readtext(
-                image_bgr,
-                detail=1,
-                paragraph=False,
-                decoder="greedy",
-                text_threshold=0.45,
-                low_text=0.20,
-                link_threshold=0.30,
-                canvas_size=2560,
-                mag_ratio=1.5,
-                contrast_ths=0.05,
-                adjust_contrast=0.7,
-            )
-        ]
+        return _read_easyocr(engine, image_bgr), language_preset
 
     if hasattr(engine, "predict"):
         try:
-            return _parse_paddle_result(engine.predict(image_bgr))
+            return _parse_paddle_result(engine.predict(image_bgr)), language_preset
         except (TypeError, AttributeError):
             pass
     try:
-        return _parse_paddle_result(engine.ocr(image_bgr, cls=True))
+        return _parse_paddle_result(engine.ocr(image_bgr, cls=True)), language_preset
     except TypeError:
-        return _parse_paddle_result(engine.ocr(image_bgr))
+        return _parse_paddle_result(engine.ocr(image_bgr)), language_preset
 
 
 def extract_text(
@@ -197,7 +296,7 @@ def extract_text(
 
     rgb, bgr = _normalise_image(image)
     print("[INFO] 正在进行文字识别...")
-    results = _recognise(bgr, language_preset)
+    results, detected_preset = _recognise(bgr, language_preset)
     annotated = rgb.copy()
     texts = []
     details = []
@@ -216,13 +315,20 @@ def extract_text(
         texts.append(text)
         details.append({"text": text, "confidence": confidence})
 
-    full_text = "\n".join(texts) if texts else "未识别到达到置信度阈值的文字"
+    if language_preset == AUTO_LANGUAGE and detected_preset is None:
+        full_text = (
+            "自动检测未找到可用的本地语言模型；"
+            "请从 OCR 语言下拉框选择语种，程序会自动下载安装。"
+        )
+    else:
+        full_text = "\n".join(texts) if texts else "未识别到达到置信度阈值的文字"
     if return_details:
         return full_text, annotated, {
             "items": details,
             "filtered_count": filtered_count,
             "confidence_threshold": confidence_threshold,
-            "language_preset": language_preset,
+            "language_preset": detected_preset or language_preset,
+            "auto_detected": language_preset == AUTO_LANGUAGE,
         }
     return full_text, annotated
 
