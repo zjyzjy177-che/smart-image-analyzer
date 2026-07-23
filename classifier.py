@@ -8,6 +8,7 @@
 4. RGB、RGBA、灰度、浮点图片输入兼容
 """
 
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -26,6 +27,11 @@ _caption_error = None
 _translator_model = None
 _translator_tokenizer = None
 _translator_error = None
+_PROJECT_DIR = Path(__file__).resolve().parent
+_MODEL_DIR = _PROJECT_DIR / "models"
+_RESNET_PATH = _MODEL_DIR / "resnet50" / "resnet50-11ad3fa6.pth"
+_BLIP_PATH = _MODEL_DIR / "blip-image-captioning-base"
+_TRANSLATOR_PATH = _MODEL_DIR / "opus-mt-en-zh"
 
 
 # ImageNet 中常见类别的中文细分类。未列出的类别仍会显示官方英文名称，
@@ -90,7 +96,13 @@ def get_model():
     if _model is None:
         print("[INFO] 正在加载 ResNet50 图像分类模型...")
         weights = ResNet50_Weights.DEFAULT
-        _model = resnet50(weights=weights)
+        if _RESNET_PATH.is_file():
+            _model = resnet50(weights=None)
+            _model.load_state_dict(
+                torch.load(_RESNET_PATH, map_location="cpu", weights_only=True)
+            )
+        else:
+            _model = resnet50(weights=weights)
         _model.eval()
         _preprocess = weights.transforms()
         _labels = weights.meta["categories"]
@@ -112,13 +124,17 @@ def get_caption_model():
 
         model_name = "Salesforce/blip-image-captioning-base"
         print("[INFO] 正在加载 BLIP 整图描述模型...")
-        try:
+        if _BLIP_PATH.is_dir():
+            model_source = str(_BLIP_PATH)
+            local_only = True
+        else:
+          try:
             model_source = snapshot_download(
                 model_name,
                 local_files_only=True,
             )
             local_only = True
-        except Exception:
+          except Exception:
             model_source = model_name
             local_only = False
         _caption_processor = BlipProcessor.from_pretrained(
@@ -285,13 +301,17 @@ def translate_caption_to_chinese(caption: str) -> str:
 
             model_name = "Helsinki-NLP/opus-mt-en-zh"
             print("[INFO] 正在加载英译中模型...")
-            try:
+            if _TRANSLATOR_PATH.is_dir():
+                model_source = str(_TRANSLATOR_PATH)
+                local_only = True
+            else:
+              try:
                 model_source = snapshot_download(
                     model_name,
                     local_files_only=True,
                 )
                 local_only = True
-            except Exception:
+              except Exception:
                 model_source = model_name
                 local_only = False
 

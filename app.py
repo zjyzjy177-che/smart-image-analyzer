@@ -15,7 +15,7 @@ import numpy as np
 
 from detector import detect_objects
 from classifier import classify_topk
-from ocr import AUTO_LANGUAGE, DEFAULT_LANGUAGE, LANGUAGE_PRESETS, extract_text
+from ocr import DEFAULT_LANGUAGE, extract_text
 from face_detect import detect_faces
 from style_transfer import transfer_style
 
@@ -344,9 +344,9 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
             )
 
             ocr_language = gr.Dropdown(
-                choices=[AUTO_LANGUAGE, *LANGUAGE_PRESETS],
+                choices=[DEFAULT_LANGUAGE],
                 label="OCR 语言 / OCR Language",
-                value=AUTO_LANGUAGE,
+                value=DEFAULT_LANGUAGE,
                 visible=False,
             )
 

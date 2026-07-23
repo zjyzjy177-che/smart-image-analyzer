@@ -1,12 +1,11 @@
 """
 ocr.py — 文字识别 (OCR) 模块
 负责人：组员 A
-功能：优先使用 PaddleOCR，并兼容 EasyOCR 作为备选
+功能：使用项目内 EasyOCR 中英文模型进行离线识别
 运行：python ocr.py
 """
 
-import os
-import sys
+from pathlib import Path
 from typing import List, Sequence, Tuple
 
 import cv2
@@ -17,20 +16,10 @@ _ocr = None
 _backend = None
 # EasyOCR 的不同文字体系不能随意混装在同一个 Reader 中。
 # 使用明确的语言预设，按需加载并缓存，避免启动时下载所有模型。
-LANGUAGE_PRESETS = {
-    "简体中文 + English": ["ch_sim", "en"],
-    "繁體中文 + English": ["ch_tra", "en"],
-    "日本語 + English": ["ja", "en"],
-    "한국어 + English": ["ko", "en"],
-    "Latin 欧洲语言": ["en", "fr", "de", "es", "pt", "it", "nl", "pl"],
-    "Русский + English": ["ru", "en"],
-    "العربية + English": ["ar", "en"],
-    "हिन्दी + English": ["hi", "en"],
-    "ไทย + English": ["th", "en"],
-    "Tiếng Việt + English": ["vi", "en"],
-}
+LANGUAGE_PRESETS = {"简体中文 + English": ["ch_sim", "en"]}
 DEFAULT_LANGUAGE = "简体中文 + English"
 AUTO_LANGUAGE = "自动检测（已安装语种）"
+_MODEL_DIR = Path(__file__).resolve().parent / "models" / "easyocr"
 _easy_readers: dict = {}
 _unavailable_local_presets: set = set()
 _last_auto_preset = None
@@ -49,6 +38,7 @@ def _get_easyocr(language_preset: str, download_enabled: bool = True):
             list(key),
             verbose=False,
             download_enabled=download_enabled,
+            model_storage_directory=str(_MODEL_DIR),
         )
     if download_enabled:
         _unavailable_local_presets.discard(language_preset)
@@ -60,43 +50,15 @@ def get_ocr(language_preset: str = DEFAULT_LANGUAGE):
     global _ocr, _backend
     if language_preset == AUTO_LANGUAGE:
         raise ValueError("自动模式应通过 _auto_recognise() 调用")
-    if language_preset != DEFAULT_LANGUAGE:
-        _backend = "easyocr"
-        return _get_easyocr(language_preset)
-    if _ocr is not None and _backend == "paddle":
+    if _ocr is not None:
         return _ocr
-
-    # PaddleOCR 3.x 在 Windows + Python 3.13 下存在 oneDNN 推理兼容问题，
-    # 该环境直接使用已验证可用的 EasyOCR，避免每次启动都初始化失败。
-    prefer_easyocr = os.name == "nt" and sys.version_info >= (3, 13)
-
-    if not prefer_easyocr:
-      try:
-        from paddleocr import PaddleOCR
-
-        # PaddleOCR 3.x 与 2.x 的初始化参数不同。
-        try:
-            _ocr = PaddleOCR(
-                lang="ch",
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=True,
-            )
-        except (TypeError, ValueError):
-            _ocr = PaddleOCR(use_angle_cls=True, lang="ch", show_log=False)
-
-        _backend = "paddle"
-        return _ocr
-      except Exception as exc:
-        print(f"[WARN] PaddleOCR 不可用，将切换到 EasyOCR：{exc}")
-
     try:
         _ocr = _get_easyocr(language_preset)
         _backend = "easyocr"
         return _ocr
     except (ImportError, ModuleNotFoundError) as exc:
         raise RuntimeError(
-            "未找到可用的 OCR 引擎，请安装 paddlepaddle/paddleocr 或 easyocr。"
+            "未找到可用的 OCR 引擎，请安装 easyocr。"
         ) from exc
 
 

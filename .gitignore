@@ -21,11 +21,16 @@ env/
 .vscode/
 .idea/
 
-# Model cache (too large for git)
+# Model cache
 ~/.cache/
-models/
 *.onnx
 *.engine
+
+# 本项目的离线模型由 Git LFS 管理
+!models/
+!models/**
+!models/**/*.pth
+!models/**/*.pt
 
 # Images
 images/output/
