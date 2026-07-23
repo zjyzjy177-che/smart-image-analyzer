@@ -25,6 +25,30 @@ _unavailable_local_presets: set = set()
 _last_auto_preset = None
 
 
+def _is_real_model_file(path: Path, minimum_bytes: int) -> bool:
+    if not path.is_file() or path.stat().st_size < minimum_bytes:
+        return False
+    with path.open("rb") as file:
+        return not file.read(64).startswith(b"version https://git-lfs.github.com/")
+
+
+def _validate_local_models() -> None:
+    """阻止 EasyOCR 把 Git LFS 指针当作 PyTorch 权重读取。"""
+    required = {
+        _MODEL_DIR / "craft_mlt_25k.pth": 10_000_000,
+        _MODEL_DIR / "zh_sim_g2.pth": 5_000_000,
+    }
+    broken = [str(path) for path, size in required.items()
+              if path.exists() and not _is_real_model_file(path, size)]
+    if broken:
+        raise RuntimeError(
+            "OCR 模型是未展开的 Git LFS 指针："
+            + "、".join(broken)
+            + "。请在项目目录执行 `git lfs install`、`git lfs pull`；"
+              "不要删除这些指针，也不要将 `weights_only` 改为 False。"
+        )
+
+
 def _get_easyocr(language_preset: str, download_enabled: bool = True):
     if language_preset not in LANGUAGE_PRESETS:
         raise ValueError(f"不支持的 OCR 语言预设：{language_preset}")
@@ -32,6 +56,7 @@ def _get_easyocr(language_preset: str, download_enabled: bool = True):
     if key not in _easy_readers:
         import easyocr
 
+        _validate_local_models()
         action = "加载" if download_enabled else "检查"
         print(f"[INFO] 正在{action} OCR 语言模型：{language_preset}")
         _easy_readers[key] = easyocr.Reader(

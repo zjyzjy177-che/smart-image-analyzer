@@ -34,6 +34,24 @@ _BLIP_PATH = _MODEL_DIR / "blip-image-captioning-base"
 _TRANSLATOR_PATH = _MODEL_DIR / "opus-mt-en-zh"
 
 
+def _is_real_model_file(path: Path, minimum_bytes: int) -> bool:
+    """判断文件是否为真实权重，而不是 Git LFS 的百字节指针。"""
+    if not path.is_file() or path.stat().st_size < minimum_bytes:
+        return False
+    with path.open("rb") as file:
+        return not file.read(64).startswith(b"version https://git-lfs.github.com/")
+
+
+def _require_real_model(path: Path, minimum_bytes: int, model_name: str) -> None:
+    """文件存在却不是权重时，给出可操作的 LFS 修复说明。"""
+    if path.exists() and not _is_real_model_file(path, minimum_bytes):
+        raise RuntimeError(
+            f"{model_name} 模型文件不完整：{path}。"
+            "它很可能是 Git LFS 指针，请在项目目录执行 "
+            "`git lfs install` 和 `git lfs pull`，不要把指针文件删除。"
+        )
+
+
 # ImageNet 中常见类别的中文细分类。未列出的类别仍会显示官方英文名称，
 # 同时由 _coarse_category() 给出中文大类，避免错误或生硬的机器翻译。
 _ZH_LABELS = {
@@ -96,16 +114,18 @@ def get_model():
     if _model is None:
         print("[INFO] 正在加载 ResNet50 图像分类模型...")
         weights = ResNet50_Weights.DEFAULT
-        if _RESNET_PATH.is_file():
-            _model = resnet50(weights=None)
-            _model.load_state_dict(
+        _require_real_model(_RESNET_PATH, 10_000_000, "ResNet50")
+        if _is_real_model_file(_RESNET_PATH, 10_000_000):
+            loaded_model = resnet50(weights=None)
+            loaded_model.load_state_dict(
                 torch.load(_RESNET_PATH, map_location="cpu", weights_only=True)
             )
         else:
-            _model = resnet50(weights=weights)
-        _model.eval()
-        _preprocess = weights.transforms()
-        _labels = weights.meta["categories"]
+            loaded_model = resnet50(weights=weights)
+        loaded_model.eval()
+        # 全部步骤成功后再写入全局缓存，避免失败后残留半初始化对象。
+        _model = loaded_model
+        _preprocess, _labels = weights.transforms(), weights.meta["categories"]
         print("[OK] 图像分类模型加载完成")
     return _model, _preprocess, _labels
 
@@ -123,8 +143,10 @@ def get_caption_model():
         from huggingface_hub import snapshot_download
 
         model_name = "Salesforce/blip-image-captioning-base"
+        model_file = _BLIP_PATH / "pytorch_model.bin"
         print("[INFO] 正在加载 BLIP 整图描述模型...")
-        if _BLIP_PATH.is_dir():
+        _require_real_model(model_file, 10_000_000, "BLIP")
+        if _is_real_model_file(model_file, 10_000_000):
             model_source = str(_BLIP_PATH)
             local_only = True
         else:
@@ -137,19 +159,20 @@ def get_caption_model():
           except Exception:
             model_source = model_name
             local_only = False
-        _caption_processor = BlipProcessor.from_pretrained(
+        loaded_processor = BlipProcessor.from_pretrained(
             model_source,
             use_fast=False,
             local_files_only=local_only,
         )
         # 当前缓存为 pytorch_model.bin。明确关闭 safetensors 探测，
         # 避免网络较慢时反复查询不存在的另一种权重格式。
-        _caption_model = BlipForConditionalGeneration.from_pretrained(
+        loaded_model = BlipForConditionalGeneration.from_pretrained(
             model_source,
             use_safetensors=False,
             local_files_only=local_only,
         )
-        _caption_model.eval()
+        loaded_model.eval()
+        _caption_model, _caption_processor = loaded_model, loaded_processor
         print("[OK] BLIP 整图描述模型加载完成")
         return _caption_model, _caption_processor
     except Exception as exc:
@@ -300,8 +323,10 @@ def translate_caption_to_chinese(caption: str) -> str:
             from transformers import MarianMTModel, MarianTokenizer
 
             model_name = "Helsinki-NLP/opus-mt-en-zh"
+            model_file = _TRANSLATOR_PATH / "pytorch_model.bin"
             print("[INFO] 正在加载英译中模型...")
-            if _TRANSLATOR_PATH.is_dir():
+            _require_real_model(model_file, 10_000_000, "英译中")
+            if _is_real_model_file(model_file, 10_000_000):
                 model_source = str(_TRANSLATOR_PATH)
                 local_only = True
             else:
@@ -315,15 +340,16 @@ def translate_caption_to_chinese(caption: str) -> str:
                 model_source = model_name
                 local_only = False
 
-            _translator_tokenizer = MarianTokenizer.from_pretrained(
+            loaded_tokenizer = MarianTokenizer.from_pretrained(
                 model_source,
                 local_files_only=local_only,
             )
-            _translator_model = MarianMTModel.from_pretrained(
+            loaded_model = MarianMTModel.from_pretrained(
                 model_source,
                 local_files_only=local_only,
             )
-            _translator_model.eval()
+            loaded_model.eval()
+            _translator_model, _translator_tokenizer = loaded_model, loaded_tokenizer
             print("[OK] 英译中模型加载完成")
 
         inputs = _translator_tokenizer(
