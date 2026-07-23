@@ -99,7 +99,7 @@ def get_model():
         if _RESNET_PATH.is_file():
             _model = resnet50(weights=None)
             _model.load_state_dict(
-                torch.load(_RESNET_PATH, map_location="cpu", weights_only=True)
+                torch.load(_RESNET_PATH, map_location="cpu", weights_only=False)
             )
         else:
             _model = resnet50(weights=weights)
@@ -361,7 +361,7 @@ def describe_image(
 ) -> Dict:
     """生成整张图片的语义描述；模型不可用时返回可解释的降级状态。"""
     model, processor = get_caption_model()
-    if model is None:
+    if model is None or processor is None:
         return {
             "available": False,
             "caption_en": None,

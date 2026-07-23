@@ -40,13 +40,15 @@ def process(image, mode, thresh, style, ocr_language=DEFAULT_LANGUAGE):
     if mode == "物体检测":
         a, dets = detect_objects(image, thresh)
         r = a
+        lines = [f"置信度阈值：{thresh:.0%}", ""]
         if dets:
-            lines = [f"检测到 {len(dets)} 个物体 / {len(dets)} objects:"]
+            lines.append(f"检测到 {len(dets)} 个物体 / {len(dets)} objects:")
             for o in dets:
                 lines.append(f"· {o['label']}  ({o['confidence']:.1%})")
-            d = "\n".join(lines)
         else:
-            d = "未检测到物体 / No objects detected"
+            lines.append("未检测到物体 / No objects detected")
+            lines.append("提示：可降低置信度阈值尝试更多检测")
+        d = "\n".join(lines)
     elif mode == "图像分类":
         try:
             result = classify_topk(image, top_k=5, confidence_threshold=thresh)
@@ -129,13 +131,15 @@ def process(image, mode, thresh, style, ocr_language=DEFAULT_LANGUAGE):
             d = f"文字识别失败 / OCR failed:\n{exc}"
     elif mode == "人脸检测":
         r, faces = detect_faces(image, thresh)
+        lines = [f"置信度阈值：{thresh:.0%}", ""]
         if faces:
-            lines = [f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)"]
+            lines.append(f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)")
             for i, (x, y, w, h) in enumerate(faces, 1):
                 lines.append(f"Face {i}: ({x},{y}) {w}×{h}")
-            d = "\n".join(lines)
         else:
-            d = "未检测到人脸 / No face detected"
+            lines.append("未检测到人脸 / No face detected")
+            lines.append("提示：可降低置信度阈值尝试更多检测，或换用正面照片")
+        d = "\n".join(lines)
     elif mode == "风格迁移":
         r = transfer_style(image, style)
         d = f"风格 / Style: {style}"
@@ -154,17 +158,6 @@ def on_mode_change(mode):
 
 
 CSS = f"""
-@font-face {{
-    font-family:'BJTU-English';
-    src:local('Times New Roman');
-    unicode-range:U+0000-024F;
-}}
-@font-face {{
-    font-family:'BJTU-Chinese';
-    src:local('Microsoft YaHei'),local('微软雅黑');
-    unicode-range:U+2E80-2EFF,U+3000-303F,U+31C0-31EF,U+3400-4DBF,U+4E00-9FFF,
-                  U+F900-FAFF,U+FF00-FFEF;
-}}
 :root {{
     --blue:#0055B3; --blue-dark:#003d8a; --blue-light:#e3edf9;
     --blue-bg:#f2f6fc; --text:#222; --text2:#555; --text3:#999;
@@ -172,8 +165,7 @@ CSS = f"""
     --sd:rgba(0,85,179,0.07); --bgh:#e8f0fa;
 }}
 * {{
-    font-family:'BJTU-English','BJTU-Chinese','Times New Roman',
-                'Microsoft YaHei',serif;
+    font-family:'微软雅黑','Microsoft YaHei','Times New Roman',serif;
     box-sizing:border-box;
 }}
 body {{ background:var(--blue-bg)!important; }}
@@ -187,12 +179,12 @@ body {{ background:var(--blue-bg)!important; }}
 }}
 .topbar-l {{ display:flex; align-items:center; gap:18px; flex:1; }}
 .badge {{ width:46px; height:46px; flex-shrink:0; }}
-.tleft {{ font-size:1.35em; font-weight:700; color:var(--blue); letter-spacing:3px; }}
-.tright {{ font-size:1.35em; font-weight:700; color:var(--blue); letter-spacing:2px; }}
-.tdiv {{ color:var(--text3); font-weight:100; font-size:1.3em; }}
+.tleft {{ font-size:1.45em; font-weight:700; color:var(--blue); letter-spacing:3px; }}
+.tright {{ font-size:1.45em; font-weight:700; color:var(--blue); letter-spacing:2px; }}
+.tdiv {{ color:var(--text3); font-weight:100; font-size:1.4em; }}
 .tsub {{ display:flex; gap:16px; flex-wrap:wrap; margin-top:4px; }}
-.tsub .en {{ font-size:0.9em; color:var(--text2); letter-spacing:1px; font-style:italic; }}
-.tsub .tag {{ font-size:0.85em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
+.tsub .en {{ font-size:0.95em; color:var(--text2); letter-spacing:1px; font-style:italic; }}
+.tsub .tag {{ font-size:0.9em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
 
 /* Content */
 .body-wrap {{ display:flex!important; flex-direction:row!important; padding:20px 28px!important; position:relative; min-height:600px; }}
@@ -205,13 +197,13 @@ body {{ background:var(--blue-bg)!important; }}
 /* Sidebar */
 .sidebar {{ width:260px!important; min-width:260px!important; background:var(--side); border-radius:10px; border:1px solid var(--bd); box-shadow:0 2px 12px var(--sd); padding:14px; margin-right:18px; height:fit-content; position:relative; z-index:1; }}
 .sidebar-sec {{ margin-bottom:14px; }}
-.sidebar-hd {{ font-size:0.88em; font-weight:700; color:var(--blue); letter-spacing:2px; padding-bottom:6px; border-bottom:2px solid var(--blue-light); margin-bottom:8px; display:flex; align-items:center; gap:5px; }}
+.sidebar-hd {{ font-size:0.95em; font-weight:700; color:var(--blue); letter-spacing:2px; padding-bottom:6px; border-bottom:2px solid var(--blue-light); margin-bottom:8px; display:flex; align-items:center; gap:5px; }}
 .sidebar-hd::before {{ content:''; width:4px; height:13px; background:var(--blue); border-radius:2px; display:inline-block; }}
 .feat-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }}
 .feat-item {{
     display:flex; align-items:center; justify-content:center; padding:10px 6px; border-radius:8px;
     border:1.5px solid var(--bd); background:var(--card); cursor:pointer;
-    font-size:0.88em; font-weight:500; color:var(--text2); text-align:center; line-height:1.35;
+    font-size:0.92em; font-weight:500; color:var(--text2); text-align:center; line-height:1.35;
     transition:all .2s;
 }}
 .feat-item:hover {{ border-color:var(--blue); color:var(--blue); background:var(--blue-light); }}
@@ -223,7 +215,7 @@ body {{ background:var(--blue-bg)!important; }}
 .ct-hd {{
     background:linear-gradient(135deg,var(--blue-light) 0%,transparent 100%);
     padding:9px 16px; border-bottom:1px solid var(--bd);
-    font-size:0.9em; font-weight:600; color:var(--blue);
+    font-size:0.95em; font-weight:600; color:var(--blue);
     display:flex; align-items:center; gap:7px;
 }}
 .ct-hd .dot {{ width:7px; height:7px; border-radius:50%; background:var(--blue); display:inline-block; }}
@@ -238,7 +230,7 @@ body {{ background:var(--blue-bg)!important; }}
 /* Button */
 button#sb-btn {{
     background:var(--blue)!important; border:none!important; color:#fff!important;
-    font-weight:600!important; font-size:0.95em!important; padding:10px 22px!important;
+    font-weight:600!important; font-size:1em!important; padding:10px 22px!important;
     border-radius:6px!important; transition:all .25s!important;
     box-shadow:0 4px 12px rgba(0,85,179,0.3)!important; letter-spacing:1px!important; width:100%!important;
 }}
@@ -246,12 +238,12 @@ button#sb-btn:hover {{ background:var(--blue-dark)!important; transform:translat
 
 /* Footer */
 .footer {{ text-align:center; padding:16px 28px 12px; border-top:1px solid var(--bd); background:var(--card); }}
-.f1 {{ font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
-.f2 {{ font-size:0.68em; color:var(--text3); margin-top:2px; }}
+.f1 {{ font-size:0.88em; color:var(--text2); letter-spacing:1px; }}
+.f2 {{ font-size:0.75em; color:var(--text3); margin-top:2px; }}
 
 /* Gradio overrides */
 .gr-form,.gr-box,.gr-group {{ border:none!important; box-shadow:none!important; background:transparent!important; }}
-label {{ font-weight:500!important; color:var(--text)!important; font-size:0.95em!important; }}
+label {{ font-weight:500!important; color:var(--text)!important; font-size:1em!important; }}
 /* 结果文字 — 使用 gr.HTML 内联样式，无需额外 CSS */
 input[type=range] {{ accent-color:var(--blue)!important; }}
 footer,.gradio-footer,.built-with,.footer-nav {{ display:none!important; }}
