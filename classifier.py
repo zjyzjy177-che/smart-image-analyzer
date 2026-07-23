@@ -99,7 +99,7 @@ def get_model():
         if _RESNET_PATH.is_file():
             _model = resnet50(weights=None)
             _model.load_state_dict(
-                torch.load(_RESNET_PATH, map_location="cpu", weights_only=False)
+                torch.load(_RESNET_PATH, map_location="cpu", weights_only=True)
             )
         else:
             _model = resnet50(weights=weights)
