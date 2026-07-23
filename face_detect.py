@@ -45,12 +45,13 @@ def get_detector():
 _detector = None
 
 
-def detect_faces(image: np.ndarray):
+def detect_faces(image: np.ndarray, conf_threshold: float = 0.4):
     """
     检测图片中的人脸
 
     参数:
         image: numpy 数组 (H, W, 3)，RGB 格式
+        conf_threshold: 置信度阈值 0.1~0.9（仅 DNN / MTCNN 有效）
 
     返回:
         result_img: 标注了人脸框的图片
@@ -73,7 +74,7 @@ def detect_faces(image: np.ndarray):
 
         if boxes is not None and probs is not None:
             for box, prob in zip(boxes, probs):
-                if prob is not None and prob > 0.9:
+                if prob is not None and prob > conf_threshold:
                     x1, y1, x2, y2 = [int(v) for v in box]
                     x1, y1 = max(0, x1), max(0, y1)
                     x2, y2 = min(w, x2), min(h, y2)
@@ -105,7 +106,7 @@ def detect_faces(image: np.ndarray):
 
             for i in range(detections.shape[2]):
                 confidence = detections[0, 0, i, 2]
-                if confidence > 0.35:
+                if confidence > conf_threshold:
                     box = detections[0, 0, i, 3:7] * np.array([scaled_w, scaled_h,
                                                                  scaled_w, scaled_h])
                     x1, y1, x2, y2 = box.astype(int)

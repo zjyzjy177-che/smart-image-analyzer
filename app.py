@@ -46,7 +46,7 @@ def process(image, mode, thresh, style):
     elif mode == "文字识别 (OCR)":
         d = "模块开发中（组员A 岳思铭）"
     elif mode == "人脸检测":
-        r, faces = detect_faces(image)
+        r, faces = detect_faces(image, thresh)
         if faces:
             d = f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)\n"
             for i, (x, y, w, h) in enumerate(faces, 1):
@@ -180,7 +180,7 @@ document.addEventListener('click', function(e){
 
 # ========== 构建界面 ==========
 
-with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
+with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS, head=HEAD) as app:
 
     # ===== 顶栏 =====
     gr.HTML(f"""
@@ -229,7 +229,7 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
             conf_threshold = gr.Slider(
                 minimum=0.1, maximum=0.9, value=0.4, step=0.05,
                 label="置信度阈值 / Confidence Threshold",
-                info="低→更多检测，高→更精准 / Lower=more, Higher=precise",
+                info="物体检测/人脸检测通用 / Object & Face Detection",
             )
 
             style_choice = gr.Dropdown(
@@ -284,4 +284,4 @@ if __name__ == "__main__":
     print("  智能图片分析系统 — 北京交通大学")
     print("  本地: http://localhost:7860")
     print("="*50)
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, css=CSS, head=HEAD, quiet=True)
+    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True)
