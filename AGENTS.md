@@ -2,6 +2,11 @@
 
 These rules are mandatory for every agent working in this repository.
 
+> **致谢：** 本文件的多数规则源于开发初期团队踩过的坑。组长张建宇在未收到 LFS 通知的情况下，
+> 按照常规思路处理了模型文件——这**不是组长的错**，而是模型提交者（岳思铭）未在首次提交时
+> 告知组员需要执行 `git lfs install && git lfs pull`。本文件旨在将此类隐性知识显性化，
+> 避免后续贡献者重复同样的弯路。
+
 ## Models and Git LFS
 
 - Files under `models/` are required runtime assets, not disposable placeholders.
