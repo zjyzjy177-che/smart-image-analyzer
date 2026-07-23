@@ -30,15 +30,16 @@ BG_URL = f"data:image/jpeg;base64,{BG}" if BG else ""
 
 def process(image, mode, thresh, style):
     if image is None:
-        return None, "请先上传一张图片 / Please upload an image"
+        return None, _html("请先上传一张图片 / Please upload an image")
     r, d = image.copy(), ""
     if mode == "物体检测":
         a, dets = detect_objects(image, thresh)
         r = a
         if dets:
-            d = f"检测到 {len(dets)} 个物体 / {len(dets)} objects:\n"
+            lines = [f"检测到 {len(dets)} 个物体 / {len(dets)} objects:"]
             for o in dets:
-                d += f"  · {o['label']}  ({o['confidence']:.1%})\n"
+                lines.append(f"· {o['label']}  ({o['confidence']:.1%})")
+            d = "<br>".join(lines)
         else:
             d = "未检测到物体 / No objects detected"
     elif mode == "图像分类":
@@ -48,15 +49,21 @@ def process(image, mode, thresh, style):
     elif mode == "人脸检测":
         r, faces = detect_faces(image, thresh)
         if faces:
-            d = f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)\n"
+            lines = [f"检测到 {len(faces)} 张人脸 / {len(faces)} face(s)"]
             for i, (x, y, w, h) in enumerate(faces, 1):
-                d += f"  · Face {i}: ({x},{y}) {w}×{h}\n"
+                lines.append(f"Face {i}: ({x},{y}) {w}×{h}")
+            d = "<br>".join(lines)
         else:
             d = "未检测到人脸 / No face detected"
     elif mode == "风格迁移":
         r = transfer_style(image, style)
         d = f"风格 / Style: {style}"
-    return r, d
+    return r, _html(d)
+
+def _html(text):
+    """将纯文本包装为居中朱红色 HTML"""
+    escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+    return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:serif;line-height:1.8;padding:16px;'>{escaped}</div>"
 
 def on_mode_change(mode):
     return gr.update(visible=(mode == "风格迁移"))
@@ -140,15 +147,13 @@ button#sb-btn:hover {{ background:var(--blue-dark)!important; transform:translat
 
 /* Footer */
 .footer {{ text-align:center; padding:16px 28px 12px; border-top:1px solid var(--bd); background:var(--card); }}
-.f1 {{ font-family:'楷体','KaiTi','STKaiti','Noto Serif SC',serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
+.f1 {{ font-family:serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
 .f2 {{ font-family:Arial,sans-serif; font-size:0.68em; color:var(--text3); margin-top:2px; }}
 
 /* Gradio overrides */
 .gr-form,.gr-box,.gr-group {{ border:none!important; box-shadow:none!important; background:transparent!important; }}
 label {{ font-weight:500!important; color:var(--text)!important; font-size:0.95em!important; }}
-textarea {{ font-family:'楷体','KaiTi','STKaiti','Noto Serif SC',serif!important; font-size:1.2em!important; line-height:1.8!important; background:var(--card)!important; color:#CC3300!important; text-align:center!important; font-weight:600!important; }}
-.gr-box textarea, .gr-form textarea, .svelte-1l0r20v textarea {{ color:#CC3300!important; }}
-textarea::placeholder {{ text-align:center!important; color:var(--text3)!important; font-weight:400!important; }}
+/* 结果文字 — 使用 gr.HTML 内联样式，无需额外 CSS */
 input[type=range] {{ accent-color:var(--blue)!important; }}
 footer,.gradio-footer,.built-with,.footer-nav {{ display:none!important; }}
 /* 隐藏 Radio — 移到屏幕外不占空间，但保持可点击 */
@@ -181,7 +186,7 @@ document.addEventListener('click', function(e){
 
 # ========== 构建界面 ==========
 
-with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS, head=HEAD) as app:
+with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
 
     # ===== 顶栏 =====
     gr.HTML(f"""
@@ -262,9 +267,8 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS,
                                 label="", show_label=False, height=420, container=False,
                             )
                         with gr.Column(elem_classes="r-col-txt"):
-                            result_text = gr.Textbox(
-                                label="", lines=16, container=False, show_label=False,
-                                placeholder="结果说明 / Description...",
+                            result_text = gr.HTML(
+                                value="<p style='font-size:1.2em;color:#CC3300;text-align:center;font-weight:600;font-family:serif;line-height:1.8;padding:20px;'>结果说明 / Description...</p>",
                             )
 
     # ===== 页脚 =====
@@ -285,4 +289,4 @@ if __name__ == "__main__":
     print("  智能图片分析系统 — 北京交通大学")
     print("  本地: http://localhost:7860")
     print("="*50)
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True)
+    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True, css=CSS, head=HEAD)
