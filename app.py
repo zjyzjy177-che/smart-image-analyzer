@@ -15,7 +15,7 @@ import numpy as np
 
 from detector import detect_objects
 from classifier import classify_topk
-from ocr import extract_text
+from ocr import DEFAULT_LANGUAGE, LANGUAGE_PRESETS, extract_text
 from face_detect import detect_faces
 from style_transfer import transfer_style
 
@@ -33,7 +33,7 @@ BADGE_IMG = f'<img src="data:image/png;base64,{BADGE}" class="badge"/>' if BADGE
 BG_URL = f"data:image/jpeg;base64,{BG}" if BG else ""
 
 
-def process(image, mode, thresh, style):
+def process(image, mode, thresh, style, ocr_language=DEFAULT_LANGUAGE):
     if image is None:
         return None, _html("请先上传一张图片 / Please upload an image")
     r, d = image.copy(), ""
@@ -62,9 +62,13 @@ def process(image, mode, thresh, style):
     elif mode == "文字识别 (OCR)":
         try:
             text, r, details = extract_text(
-                image, confidence_threshold=thresh, return_details=True,
+                image,
+                confidence_threshold=thresh,
+                return_details=True,
+                language_preset=ocr_language,
             )
             lines = [
+                f"OCR 语言：{details['language_preset']}",
                 f"OCR 置信度阈值：{thresh:.0%}",
                 f"保留文字：{len(details['items'])} 段",
             ]
@@ -98,17 +102,35 @@ def _html(text):
     return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:\"Heiti SC\",\"STHeiti\",SimHei,黑体,sans-serif;line-height:1.8;padding:16px;'>{escaped}</div>"
 
 def on_mode_change(mode):
-    return gr.update(visible=(mode == "风格迁移"))
+    return (
+        gr.update(visible=(mode == "风格迁移")),
+        gr.update(visible=(mode == "文字识别 (OCR)")),
+    )
 
 
 CSS = f"""
+@font-face {{
+    font-family:'BJTU-English';
+    src:local('Times New Roman');
+    unicode-range:U+0000-024F;
+}}
+@font-face {{
+    font-family:'BJTU-Chinese';
+    src:local('Microsoft YaHei'),local('微软雅黑');
+    unicode-range:U+2E80-2EFF,U+3000-303F,U+31C0-31EF,U+3400-4DBF,U+4E00-9FFF,
+                  U+F900-FAFF,U+FF00-FFEF;
+}}
 :root {{
     --blue:#0055B3; --blue-dark:#003d8a; --blue-light:#e3edf9;
     --blue-bg:#f2f6fc; --text:#222; --text2:#555; --text3:#999;
     --card:#fff; --side:#fff; --bd:#d0dae8;
     --sd:rgba(0,85,179,0.07); --bgh:#e8f0fa;
 }}
-* {{ font-family:'微软雅黑','Microsoft YaHei','PingFang SC','Noto Sans SC',Arial,sans-serif; box-sizing:border-box; }}
+* {{
+    font-family:'BJTU-English','BJTU-Chinese','Times New Roman',
+                'Microsoft YaHei',serif;
+    box-sizing:border-box;
+}}
 body {{ background:var(--blue-bg)!important; }}
 .gradio-container {{ max-width:1440px!important; margin:0 auto; background:transparent!important; padding:0!important; }}
 
@@ -124,8 +146,8 @@ body {{ background:var(--blue-bg)!important; }}
 .tright {{ font-size:1.35em; font-weight:700; color:var(--blue); letter-spacing:2px; }}
 .tdiv {{ color:var(--text3); font-weight:100; font-size:1.3em; }}
 .tsub {{ display:flex; gap:16px; flex-wrap:wrap; margin-top:4px; }}
-.tsub .en {{ font-family:'Times New Roman',Times,serif; font-size:0.9em; color:var(--text2); letter-spacing:1px; font-style:italic; }}
-.tsub .tag {{ font-family:'宋体','SimSun','Noto Serif SC',serif; font-size:0.85em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
+.tsub .en {{ font-size:0.9em; color:var(--text2); letter-spacing:1px; font-style:italic; }}
+.tsub .tag {{ font-size:0.85em; color:var(--text2); padding-left:14px; border-left:1px solid var(--bd); }}
 
 /* Content */
 .body-wrap {{ display:flex!important; flex-direction:row!important; padding:20px 28px!important; position:relative; min-height:600px; }}
@@ -179,8 +201,8 @@ button#sb-btn:hover {{ background:var(--blue-dark)!important; transform:translat
 
 /* Footer */
 .footer {{ text-align:center; padding:16px 28px 12px; border-top:1px solid var(--bd); background:var(--card); }}
-.f1 {{ font-family:'Microsoft YaHei','微软雅黑','PingFang SC',sans-serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
-.f2 {{ font-family:Arial,sans-serif; font-size:0.68em; color:var(--text3); margin-top:2px; }}
+.f1 {{ font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
+.f2 {{ font-size:0.68em; color:var(--text3); margin-top:2px; }}
 
 /* Gradio overrides */
 .gr-form,.gr-box,.gr-group {{ border:none!important; box-shadow:none!important; background:transparent!important; }}
@@ -266,7 +288,7 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
             gr.HTML('<div class="sidebar-hd">⚙️ 参数 / Settings</div>')
 
             conf_threshold = gr.Slider(
-                minimum=0.1, maximum=0.9, value=0.4, step=0.05,
+                minimum=0.0, maximum=0.9, value=0.4, step=0.05,
                 label="置信度阈值 / Confidence Threshold",
                 info="低→更多检测，高→更精准 / Lower=more, Higher=precise",
             )
@@ -274,6 +296,13 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
             style_choice = gr.Dropdown(
                 choices=["素描·黑白线条画","二次元·动漫风格"],
                 label="风格 / Style", value="素描·黑白线条画", visible=False,
+            )
+
+            ocr_language = gr.Dropdown(
+                choices=list(LANGUAGE_PRESETS),
+                label="OCR 语言 / OCR Language",
+                value=DEFAULT_LANGUAGE,
+                visible=False,
             )
 
             sb = gr.Button("🚀 开始分析 / Analyze", variant="primary", elem_id="sb-btn")
@@ -314,8 +343,29 @@ with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
     """)
 
     # ===== 事件 =====
-    sb.click(fn=process, inputs=[image_input, mode, conf_threshold, style_choice], outputs=[image_output, result_text])
-    mode.change(fn=on_mode_change, inputs=mode, outputs=style_choice)
+    analysis_inputs = [
+        image_input, mode, conf_threshold, style_choice, ocr_language,
+    ]
+    sb.click(
+        fn=process,
+        inputs=analysis_inputs,
+        outputs=[image_output, result_text],
+    )
+    conf_threshold.change(
+        fn=process,
+        inputs=analysis_inputs,
+        outputs=[image_output, result_text],
+    )
+    ocr_language.change(
+        fn=process,
+        inputs=analysis_inputs,
+        outputs=[image_output, result_text],
+    )
+    mode.change(
+        fn=on_mode_change,
+        inputs=mode,
+        outputs=[style_choice, ocr_language],
+    )
 
 
 if __name__ == "__main__":
@@ -323,4 +373,11 @@ if __name__ == "__main__":
     print("  智能图片分析系统 — 北京交通大学")
     print("  本地: http://localhost:7860")
     print("="*50)
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True, css=CSS, head=HEAD)
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        quiet=True,
+        css=CSS,
+        head=HEAD,
+    )

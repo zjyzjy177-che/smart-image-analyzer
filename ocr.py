@@ -15,14 +15,43 @@ import numpy as np
 
 _ocr = None
 _backend = None
-# 多语系备用 Reader（EasyOCR 每个 Reader 只能支持一个非拉丁语系 + 英语）
+# EasyOCR 的不同文字体系不能随意混装在同一个 Reader 中。
+# 使用明确的语言预设，按需加载并缓存，避免启动时下载所有模型。
+LANGUAGE_PRESETS = {
+    "简体中文 + English": ["ch_sim", "en"],
+    "繁體中文 + English": ["ch_tra", "en"],
+    "日本語 + English": ["ja", "en"],
+    "한국어 + English": ["ko", "en"],
+    "Latin 欧洲语言": ["en", "fr", "de", "es", "pt", "it", "nl", "pl"],
+    "Русский + English": ["ru", "en"],
+    "العربية + English": ["ar", "en"],
+    "हिन्दी + English": ["hi", "en"],
+    "ไทย + English": ["th", "en"],
+    "Tiếng Việt + English": ["vi", "en"],
+}
+DEFAULT_LANGUAGE = "简体中文 + English"
 _easy_readers: dict = {}
 
 
-def get_ocr():
+def _get_easyocr(language_preset: str):
+    if language_preset not in LANGUAGE_PRESETS:
+        raise ValueError(f"不支持的 OCR 语言预设：{language_preset}")
+    key = tuple(LANGUAGE_PRESETS[language_preset])
+    if key not in _easy_readers:
+        import easyocr
+
+        print(f"[INFO] 正在加载 OCR 语言模型：{language_preset}")
+        _easy_readers[key] = easyocr.Reader(list(key), verbose=False)
+    return _easy_readers[key]
+
+
+def get_ocr(language_preset: str = DEFAULT_LANGUAGE):
     """加载并缓存可用的 OCR 引擎。"""
     global _ocr, _backend
-    if _ocr is not None:
+    if language_preset != DEFAULT_LANGUAGE:
+        _backend = "easyocr"
+        return _get_easyocr(language_preset)
+    if _ocr is not None and _backend == "paddle":
         return _ocr
 
     # PaddleOCR 3.x 在 Windows + Python 3.13 下存在 oneDNN 推理兼容问题，
@@ -50,37 +79,8 @@ def get_ocr():
         print(f"[WARN] PaddleOCR 不可用，将切换到 EasyOCR：{exc}")
 
     try:
-        import easyocr
-
-        # EasyOCR 一个 Reader 只能混合一个非拉丁语系。
-        # 因此为不同区域分别创建 Reader，识别时逐个尝试。
-        lang_groups = [
-            ("en",          ["en"]),                               # 纯英语（最快）
-            ("ch_sim",      ["ch_sim","en"]),                      # 简体中文 + 英语
-            ("ch_tra",      ["ch_tra","en"]),                      # 繁体中文 + 英语
-            ("ja",          ["ja","en"]),                          # 日语 + 英语
-            ("ko",          ["ko","en"]),                          # 韩语 + 英语
-            ("th",          ["th","en"]),                          # 泰语 + 英语
-            ("europe",      ["en","fr","de","es","pt","it","nl","ru","pl"]),  # 欧洲多语
-            ("other",       ["en","ar","hi","vi","tr"]),           # 其他主要语言
-        ]
-        for key, langs in lang_groups:
-            try:
-                _easy_readers[key] = easyocr.Reader(langs, verbose=False)
-            except Exception:
-                pass  # 某个语言组加载失败不影响其他组
-
-        if _easy_readers:
-            # 默认用第一个可用的 Reader（纯英语）
-            _ocr = list(_easy_readers.values())[0]
-            _backend = "easyocr"
-            return _ocr
-
-        raise RuntimeError("EasyOCR 无可用 Reader")
-    except (ImportError, ModuleNotFoundError) as exc:
-        raise RuntimeError(
-            "未找到可用的 OCR 引擎，请安装 paddlepaddle/paddleocr 或 easyocr。"
-        ) from exc
+        _ocr = _get_easyocr(language_preset)
+        _backend = "easyocr"
         return _ocr
     except (ImportError, ModuleNotFoundError) as exc:
         raise RuntimeError(
@@ -147,23 +147,26 @@ def _parse_paddle_result(raw_result) -> List[Tuple[Sequence, str, float]]:
     return items
 
 
-def _recognise(image_bgr: np.ndarray):
-    engine = get_ocr()
+def _recognise(image_bgr: np.ndarray, language_preset: str):
+    engine = get_ocr(language_preset)
     if _backend == "easyocr":
-        # 先尝试默认 Reader，若无结果则逐个尝试其他语系 Reader
-        all_results = [(box, text, score) for box, text, score in engine.readtext(image_bgr)]
-        if all_results:
-            return all_results
-        for key, reader in _easy_readers.items():
-            if reader is engine:
-                continue
-            try:
-                results = [(box, text, score) for box, text, score in reader.readtext(image_bgr)]
-                if results:
-                    return results
-            except Exception:
-                continue
-        return []
+        # 降低文字检测阶段门槛并放大图片，改善小字、浅色字和低对比文字漏检。
+        return [
+            (box, text, score)
+            for box, text, score in engine.readtext(
+                image_bgr,
+                detail=1,
+                paragraph=False,
+                decoder="greedy",
+                text_threshold=0.45,
+                low_text=0.20,
+                link_threshold=0.30,
+                canvas_size=2560,
+                mag_ratio=1.5,
+                contrast_ths=0.05,
+                adjust_contrast=0.7,
+            )
+        ]
 
     if hasattr(engine, "predict"):
         try:
@@ -180,6 +183,7 @@ def extract_text(
     image: np.ndarray,
     confidence_threshold: float = 0.4,
     return_details: bool = False,
+    language_preset: str = DEFAULT_LANGUAGE,
 ):
     """
     提取文字并在结果图中框出文字区域。
@@ -193,7 +197,7 @@ def extract_text(
 
     rgb, bgr = _normalise_image(image)
     print("[INFO] 正在进行文字识别...")
-    results = _recognise(bgr)
+    results = _recognise(bgr, language_preset)
     annotated = rgb.copy()
     texts = []
     details = []
@@ -218,6 +222,7 @@ def extract_text(
             "items": details,
             "filtered_count": filtered_count,
             "confidence_threshold": confidence_threshold,
+            "language_preset": language_preset,
         }
     return full_text, annotated
 
