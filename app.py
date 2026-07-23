@@ -63,7 +63,7 @@ def process(image, mode, thresh, style):
 def _html(text):
     """将纯文本包装为居中朱红色 HTML"""
     escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
-    return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:serif;line-height:1.8;padding:16px;'>{escaped}</div>"
+    return f"<div style='font-size:1.15em;color:#CC3300;text-align:center;font-weight:600;font-family:\"Microsoft YaHei\",微软雅黑,\"PingFang SC\",sans-serif;line-height:1.8;padding:16px;'>{escaped}</div>"
 
 def on_mode_change(mode):
     return gr.update(visible=(mode == "风格迁移"))
@@ -147,7 +147,7 @@ button#sb-btn:hover {{ background:var(--blue-dark)!important; transform:translat
 
 /* Footer */
 .footer {{ text-align:center; padding:16px 28px 12px; border-top:1px solid var(--bd); background:var(--card); }}
-.f1 {{ font-family:serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
+.f1 {{ font-family:'Microsoft YaHei','微软雅黑','PingFang SC',sans-serif; font-size:0.82em; color:var(--text2); letter-spacing:1px; }}
 .f2 {{ font-family:Arial,sans-serif; font-size:0.68em; color:var(--text3); margin-top:2px; }}
 
 /* Gradio overrides */
