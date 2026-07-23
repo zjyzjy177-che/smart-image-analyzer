@@ -186,7 +186,7 @@ document.addEventListener('click', function(e){
 
 # ========== 构建界面 ==========
 
-with gr.Blocks(title="智能图片分析系统 — 北京交通大学") as app:
+with gr.Blocks(title="智能图片分析系统 — 北京交通大学", css=CSS, head=HEAD) as app:
 
     # ===== 顶栏 =====
     gr.HTML(f"""
@@ -289,4 +289,4 @@ if __name__ == "__main__":
     print("  智能图片分析系统 — 北京交通大学")
     print("  本地: http://localhost:7860")
     print("="*50)
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True, css=CSS, head=HEAD)
+    app.launch(server_name="0.0.0.0", server_port=7860, share=False, quiet=True)
